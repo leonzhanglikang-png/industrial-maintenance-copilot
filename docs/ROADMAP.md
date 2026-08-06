@@ -1,58 +1,57 @@
-# Implementation roadmap
+# 项目里程碑
 
-## Milestone 0 - foundation
+## Milestone 0——工程基础
 
-- freeze scope and architecture;
-- create a tested API skeleton;
-- define configuration without committing secrets.
+- 确定项目范围和架构；
+- 创建可测试的 API 骨架；
+- 定义配置方式，不提交真实密钥。
 
-Exit condition: the health endpoint passes an automated test.
+完成标准：健康检查接口通过自动化测试。
 
-## Milestone 1 - ingestion and baseline retrieval
+## Milestone 1——文档导入和基础检索
 
-- define document and chunk schemas;
-- parse PDF, Markdown, and text files;
-- preserve page and source metadata;
-- implement a baseline dense retriever;
-- expose ingestion and search endpoints.
+- 定义文档和文本块 Schema；
+- 解析 PDF、Markdown 和纯文本；
+- 保留页码和来源元数据；
+- 实现基础向量检索；
+- 提供导入和搜索接口。
 
-Exit condition: a question returns relevant chunks with traceable sources.
+完成标准：输入问题后，能够返回相关文本块和可追溯来源。
 
-## Milestone 2 - hybrid retrieval and evaluation
+## Milestone 2——混合检索和评测
 
-- add lexical retrieval and result fusion;
-- add reranking;
-- create at least 50 labelled retrieval questions;
-- report Recall@5, MRR, and latency.
+- 加入关键词检索并融合结果；
+- 加入重排序；
+- 创建至少 50 条人工标注的检索问题；
+- 输出 Recall@5、MRR 和延迟。
 
-Exit condition: the hybrid system beats the recorded baseline on the fixed set.
+完成标准：混合检索在固定评测集上优于已经记录的基础方案。
 
-## Milestone 3 - tools and agent workflow
+## Milestone 3——工具和 Agent 工作流
 
-- add incident-history lookup;
-- add deterministic sensor-summary analysis;
-- implement a bounded state graph;
-- expose tool calls and evidence in the response.
+- 加入历史故障查询；
+- 加入确定性的传感器摘要分析；
+- 实现有边界的状态图；
+- 在响应中展示工具调用和证据。
 
-Exit condition: representative scenarios use the correct tools and cite evidence.
+完成标准：代表性场景能够调用正确工具并引用证据。
 
-## Milestone 4 - complete application
+## Milestone 4——完整应用
 
-- add the demo UI;
-- add authentication, rate limiting, and upload validation;
-- add structured logs, health checks, and error handling;
-- add integration tests.
+- 添加演示界面；
+- 添加身份验证、限流和上传验证；
+- 添加结构化日志、健康检查和异常处理；
+- 添加集成测试。
 
-Exit condition: a new user can complete the main workflow without developer help.
+完成标准：新用户不需要开发者帮助即可完成主要使用流程。
 
-## Milestone 5 - deployment and portfolio package
+## Milestone 5——部署与求职材料
 
-- build containers and CI checks;
-- deploy the application;
-- run load, quality, and cost evaluations;
-- publish architecture, evaluation, and demo documentation;
-- write honest resume bullets from measured results.
+- 构建容器和 CI 检查；
+- 部署应用；
+- 完成负载、质量和成本评测；
+- 发布架构、评测和演示文档；
+- 根据真实测量结果撰写简历描述。
 
-Exit condition: public demo or recorded fallback, reproducible repository, and
-final evaluation report are available.
+完成标准：具备公开演示或录屏备用方案、可重复运行的仓库和最终评测报告。
 

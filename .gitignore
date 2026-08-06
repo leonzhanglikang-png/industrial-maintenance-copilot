@@ -19,3 +19,5 @@ data/uploads/*
 !data/uploads/.gitkeep
 logs/*
 !logs/.gitkeep
+# Local learning notes
+TODAY.md

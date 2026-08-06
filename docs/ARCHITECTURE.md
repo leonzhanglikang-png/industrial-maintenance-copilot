@@ -1,39 +1,53 @@
-# Architecture
+# 系统架构
 
-## Target request flow
+## 当前 API 基础
 
 ```text
-Web demo
-   |
-FastAPI application
-   |
-Agent orchestrator
-   |-- knowledge search tool ---> hybrid retriever ---> vector store
-   |-- incident lookup tool ----> relational database
-   |-- sensor analysis tool ----> deterministic Python analysis
-   |
-Answer composer ---> cited response + tool trace + confidence signals
-   |
-Evaluation and observability store
+浏览器或 API 客户端
+        |
+FastAPI 应用工厂 create_app()
+        |
+APIRouter
+        |
+路由处理函数
+        |
+Pydantic 响应 Schema
+        |
+JSON 响应
 ```
 
-## Planned technology choices
+应用创建、配置、路由和响应 Schema 相互分离，使接口能够独立测试，也为后续加入检索与 Agent 模块保留清晰边界。
 
-- API: FastAPI and Pydantic
-- Relational data: PostgreSQL
-- Vector and lexical retrieval: Qdrant with dense and sparse representations
-- LLM access: provider-neutral OpenAI-compatible client
-- Agent workflow: explicit state graph rather than a free-running agent loop
-- Demo UI: Streamlit initially
-- Packaging: `uv`
-- Deployment: Docker images and Compose for local infrastructure
-- Quality: Pytest, Ruff, structured logs, evaluation scripts
+## 最终请求流程
 
-## Design principles
+```text
+网页演示界面
+   |
+FastAPI 应用
+   |
+受约束的 Agent 编排器
+   |-- 知识检索工具 ---> 混合检索器 ---> 向量数据库
+   |-- 故障记录工具 ---> 关系型数据库
+   |-- 传感器工具 -----> 确定性 Python 分析程序
+   |
+回答生成器 ---> 带引用回答 + 工具轨迹 + 可信度信号
+   |
+评测与可观测性存储
+```
 
-1. Retrieval and tool execution must be independently testable.
-2. Agent decisions must be visible in the demo.
-3. Answers must distinguish evidence from model inference.
-4. Safety-critical actions must always remain recommendations for a human.
-5. Provider-specific code stays behind small interfaces.
+## 关键技术取舍
 
+1. **分离 API、领域服务和基础设施**：路由只处理 HTTP；检索和 Agent 逻辑放入服务层；模型、向量数据库和关系型数据库连接放入基础设施层。
+2. **从导入阶段保留引用信息**：文档和文本块从一开始就保存来源、页码、章节和稳定 ID，避免回答生成时无法追溯证据。
+3. **工具必须能够独立测试**：检索、故障查询和传感器分析不依赖 Agent 才能运行。
+4. **Agent 必须有边界**：使用明确状态和停止条件，不使用无限自主循环。
+5. **安全操作由人确认**：系统只提供建议，不直接控制真实设备。
+
+## 计划采用的技术
+
+- API 与数据验证：FastAPI、Pydantic
+- 关系型数据：PostgreSQL
+- 向量与关键词检索：Qdrant、稠密向量与稀疏表示
+- 大模型访问：兼容 OpenAI 接口且不绑定具体供应商的客户端
+- 演示界面：Streamlit
+- 工程化：uv、Pytest、Ruff、Docker、结构化日志
