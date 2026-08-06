@@ -13,4 +13,3 @@ def test_health_check_returns_service_metadata() -> None:
         "version": "0.1.0",
         "environment": "development",
     }
-

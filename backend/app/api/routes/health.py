@@ -15,4 +15,3 @@ def health_check() -> HealthResponse:
         version=settings.app_version,
         environment=settings.app_env,
     )
-
