@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from backend.app.domain.documents import Chunk, Document
+from backend.app.domain.documents import Chunk, Document, DocumentPage
 
 
 def test_document_accepts_valid_data() -> None:
@@ -73,3 +73,24 @@ def test_chunk_rejects_page_number_zero() -> None:
             source="pump_manual.pdf",
             page_number=0,
         )
+
+
+def test_pdf_document_preserves_page_text() -> None:
+    document = Document(
+        document_id="manual-001",
+        source="pump_manual.pdf",
+        content_type="application/pdf",
+        text="Page one.\n\nPage three.",
+        pages=[
+            DocumentPage(page_number=1, text="Page one."),
+            DocumentPage(page_number=3, text="Page three."),
+        ],
+    )
+
+    assert document.pages[0].page_number == 1
+    assert document.pages[1].page_number == 3
+
+
+def test_document_page_rejects_page_number_zero() -> None:
+    with pytest.raises(ValidationError):
+        DocumentPage(page_number=0, text="Invalid page.")
