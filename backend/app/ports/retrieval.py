@@ -1,0 +1,31 @@
+from collections.abc import Sequence
+from typing import Protocol, runtime_checkable
+
+from pydantic import BaseModel
+
+from backend.app.domain.documents import Chunk
+
+Embedding = list[float]
+
+
+class SearchResult(BaseModel):
+    chunk: Chunk
+    score: float
+
+
+@runtime_checkable
+class EmbeddingProvider(Protocol):
+    @property
+    def dimension(self) -> int: ...
+
+    def embed(self, texts: Sequence[str]) -> list[Embedding]: ...
+
+
+@runtime_checkable
+class Retriever(Protocol):
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int = 5,
+    ) -> list[SearchResult]: ...
