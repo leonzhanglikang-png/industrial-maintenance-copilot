@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from backend.app.api.routes.health import router as health_router
 from backend.app.api.routes.info import router as info_router
+from backend.app.api.routes.search import router as search_router
 from backend.app.core.config import get_settings
 
 
@@ -14,6 +15,10 @@ def create_app() -> FastAPI:
     )
     application.include_router(health_router, prefix=settings.api_prefix)
     application.include_router(info_router, prefix=settings.api_prefix)
+    application.include_router(
+        search_router,
+        prefix=settings.api_prefix,
+    )
     return application
 
 
