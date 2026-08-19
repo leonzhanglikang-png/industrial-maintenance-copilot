@@ -7,7 +7,6 @@ from backend.app.infrastructure.embeddings import (
 from backend.app.infrastructure.vector_retriever import (
     InMemoryVectorRetriever,
 )
-from backend.app.ports.retrieval import Retriever
 from backend.app.services.document_chunker import chunk_document
 from backend.app.services.document_parser import parse_text_document
 
@@ -16,7 +15,7 @@ DEMO_MANUAL_PATH = PROJECT_ROOT / "data" / "raw" / "demo_pump_manual.md"
 
 
 @lru_cache
-def get_retriever() -> Retriever:
+def get_retriever() -> InMemoryVectorRetriever:
     document = parse_text_document(DEMO_MANUAL_PATH)
     chunks = chunk_document(
         document,

@@ -2,7 +2,11 @@ from collections.abc import Sequence
 from math import sqrt
 
 from backend.app.domain.documents import Chunk
-from backend.app.ports.retrieval import EmbeddingProvider, SearchResult
+from backend.app.ports.retrieval import (
+    Embedding,
+    EmbeddingProvider,
+    SearchResult,
+)
 
 
 def cosine_similarity(
@@ -31,11 +35,37 @@ class InMemoryVectorRetriever:
         embedding_provider: EmbeddingProvider,
     ) -> None:
         self._embedding_provider = embedding_provider
-        self._chunks = list(chunks)
-        self._vectors = embedding_provider.embed([chunk.text for chunk in self._chunks])
+        self._chunks: list[Chunk] = []
+        self._vectors: list[Embedding] = []
+        self.add_chunks(chunks)
 
-        if len(self._vectors) != len(self._chunks):
+    def add_chunks(
+        self,
+        chunks: Sequence[Chunk],
+    ) -> int:
+        existing_ids = {chunk.chunk_id for chunk in self._chunks}
+        new_chunks: list[Chunk] = []
+
+        for chunk in chunks:
+            if chunk.chunk_id not in existing_ids:
+                new_chunks.append(chunk)
+                existing_ids.add(chunk.chunk_id)
+
+        if not new_chunks:
+            return 0
+
+        new_vectors = self._embedding_provider.embed([chunk.text for chunk in new_chunks])
+
+        if len(new_vectors) != len(new_chunks):
             raise ValueError("embedding provider returned unexpected vector count")
+
+        if any(len(vector) != self._embedding_provider.dimension for vector in new_vectors):
+            raise ValueError("embedding provider returned unexpected vector dimension")
+
+        self._chunks.extend(new_chunks)
+        self._vectors.extend(new_vectors)
+
+        return len(new_chunks)
 
     def search(
         self,

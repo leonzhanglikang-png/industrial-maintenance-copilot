@@ -10,7 +10,7 @@ from backend.app.infrastructure.vector_retriever import (
     InMemoryVectorRetriever,
     cosine_similarity,
 )
-from backend.app.ports.retrieval import Retriever
+from backend.app.ports.retrieval import ChunkIndexer, Retriever
 
 
 def test_identical_vectors_have_maximum_similarity() -> None:
@@ -75,6 +75,7 @@ def test_retriever_matches_protocol() -> None:
     retriever = InMemoryVectorRetriever([], provider)
 
     assert isinstance(retriever, Retriever)
+    assert isinstance(retriever, ChunkIndexer)
 
 
 def test_retriever_ranks_chunks_and_preserves_metadata() -> None:
@@ -151,3 +152,54 @@ def test_retriever_integrates_with_hash_embedding_provider() -> None:
     assert results[0].chunk.chunk_id == "chunk-pump"
     assert results[0].score == pytest.approx(1.0)
     assert results[0].chunk.page_number == 1
+
+
+def test_retriever_adds_chunks_after_initialization() -> None:
+    pump_chunk = make_chunk(
+        "chunk-pump",
+        "pump alarm",
+        0,
+        1,
+    )
+    motor_chunk = make_chunk(
+        "chunk-motor",
+        "motor temperature",
+        1,
+        2,
+    )
+    provider = ControlledEmbeddingProvider(
+        {
+            "pump alarm": [1.0, 0.0],
+            "motor temperature": [0.0, 1.0],
+            "motor question": [0.0, 1.0],
+        }
+    )
+    retriever = InMemoryVectorRetriever([pump_chunk], provider)
+
+    added_count = retriever.add_chunks([motor_chunk])
+    results = retriever.search("motor question", limit=1)
+
+    assert added_count == 1
+    assert results[0].chunk.chunk_id == "chunk-motor"
+
+
+def test_retriever_ignores_duplicate_chunk_ids() -> None:
+    chunk = make_chunk(
+        "chunk-pump",
+        "pump alarm",
+        0,
+        1,
+    )
+    provider = ControlledEmbeddingProvider(
+        {
+            "pump alarm": [1.0, 0.0],
+            "pump question": [1.0, 0.0],
+        }
+    )
+    retriever = InMemoryVectorRetriever([chunk], provider)
+
+    added_count = retriever.add_chunks([chunk])
+    results = retriever.search("pump question", limit=5)
+
+    assert added_count == 0
+    assert len(results) == 1

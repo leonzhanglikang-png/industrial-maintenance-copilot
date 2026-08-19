@@ -22,6 +22,14 @@ class EmbeddingProvider(Protocol):
 
 
 @runtime_checkable
+class ChunkIndexer(Protocol):
+    def add_chunks(
+        self,
+        chunks: Sequence[Chunk],
+    ) -> int: ...
+
+
+@runtime_checkable
 class Retriever(Protocol):
     def search(
         self,
