@@ -1,0 +1,44 @@
+[
+  {
+    "case_id": "low-discharge-pressure",
+    "query": "What should I inspect when pump discharge pressure is low?",
+    "relevant_chunk_ids": [
+      "chunk-fd8c51337f69a0c63c2f4bc87c3c611e1b3816047315b63886cd7824b8cf0835"
+    ]
+  },
+  {
+    "case_id": "prevent-dry-running",
+    "query": "How can I prevent the pump from running dry?",
+    "relevant_chunk_ids": [
+      "chunk-fd8c51337f69a0c63c2f4bc87c3c611e1b3816047315b63886cd7824b8cf0835"
+    ]
+  },
+  {
+    "case_id": "high-bearing-temperature",
+    "query": "What should be checked when bearing temperature is too high?",
+    "relevant_chunk_ids": [
+      "chunk-7c3963f6691f310ffcaab8a372f1c0ca43729a64a72e6537de3f9f5142388c09"
+    ]
+  },
+  {
+    "case_id": "cool-before-inspection",
+    "query": "Should the equipment cool before inspection?",
+    "relevant_chunk_ids": [
+      "chunk-7c3963f6691f310ffcaab8a372f1c0ca43729a64a72e6537de3f9f5142388c09"
+    ]
+  },
+  {
+    "case_id": "mechanical-seal-leakage",
+    "query": "What safety steps are required for mechanical seal leakage?",
+    "relevant_chunk_ids": [
+      "chunk-7c3963f6691f310ffcaab8a372f1c0ca43729a64a72e6537de3f9f5142388c09"
+    ]
+  },
+  {
+    "case_id": "lockout-qualified-technician",
+    "query": "Who may perform maintenance after lockout-tagout?",
+    "relevant_chunk_ids": [
+      "chunk-ceee00c2971ddbe9c6cb9b18164fc5bd5f3e7a73a88c8d79964a80f8d5b3907f"
+    ]
+  }
+]
