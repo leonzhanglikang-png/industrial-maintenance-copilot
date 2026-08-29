@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from backend.app.domain.documents import Chunk
 from backend.app.infrastructure.embeddings import (
     DeterministicHashEmbeddingProvider,
 )
@@ -15,16 +16,22 @@ DEMO_MANUAL_PATH = PROJECT_ROOT / "data" / "raw" / "demo_pump_manual.md"
 
 
 @lru_cache
-def get_retriever() -> InMemoryVectorRetriever:
+def get_demo_chunks() -> tuple[Chunk, ...]:
     document = parse_text_document(DEMO_MANUAL_PATH)
     chunks = chunk_document(
         document,
         max_words=50,
         overlap_words=10,
     )
+
+    return tuple(chunks)
+
+
+@lru_cache
+def get_retriever() -> InMemoryVectorRetriever:
     embedding_provider = DeterministicHashEmbeddingProvider(dimension=128)
 
     return InMemoryVectorRetriever(
-        chunks,
+        get_demo_chunks(),
         embedding_provider,
     )

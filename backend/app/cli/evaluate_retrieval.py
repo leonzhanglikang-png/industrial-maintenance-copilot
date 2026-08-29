@@ -1,8 +1,13 @@
 import json
 from pathlib import Path
 
-from backend.app.api.dependencies import get_retriever
+from backend.app.api.dependencies import get_demo_chunks, get_retriever
+from backend.app.infrastructure.keyword_retriever import (
+    InMemoryBM25Retriever,
+)
+from backend.app.ports.retrieval import Retriever
 from backend.app.services.retrieval_evaluation import (
+    RetrievalEvaluationCase,
     evaluate_retriever,
     load_evaluation_cases,
 )
@@ -11,9 +16,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 EVALUATION_CASES_PATH = PROJECT_ROOT / "data" / "evaluation" / "retrieval_cases.json"
 
 
-def build_evaluation_summary() -> dict[str, object]:
-    cases = load_evaluation_cases(EVALUATION_CASES_PATH)
-    retriever = get_retriever()
+def _evaluate_baseline(
+    name: str,
+    retriever: Retriever,
+    cases: list[RetrievalEvaluationCase],
+) -> dict[str, object]:
     runs: list[dict[str, float | int]] = []
 
     for k in (1, 3, 5):
@@ -32,9 +39,29 @@ def build_evaluation_summary() -> dict[str, object]:
         )
 
     return {
-        "retriever": "deterministic-hash-embedding",
-        "case_count": len(cases),
+        "name": name,
         "runs": runs,
+    }
+
+
+def build_evaluation_summary() -> dict[str, object]:
+    cases = load_evaluation_cases(EVALUATION_CASES_PATH)
+    baselines = [
+        _evaluate_baseline(
+            "deterministic-hash-embedding",
+            get_retriever(),
+            cases,
+        ),
+        _evaluate_baseline(
+            "bm25-keyword",
+            InMemoryBM25Retriever(get_demo_chunks()),
+            cases,
+        ),
+    ]
+
+    return {
+        "case_count": len(cases),
+        "baselines": baselines,
     }
 
 

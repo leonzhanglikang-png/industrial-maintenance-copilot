@@ -16,17 +16,28 @@ def test_evaluation_cli_outputs_baseline_report(
     output = capsys.readouterr().out
     payload = json.loads(output)
 
-    assert payload["retriever"] == ("deterministic-hash-embedding")
     assert payload["case_count"] == 6
-    assert [run["k"] for run in payload["runs"]] == [1, 3, 5]
+    assert [baseline["name"] for baseline in payload["baselines"]] == [
+        "deterministic-hash-embedding",
+        "bm25-keyword",
+    ]
 
-    first_run = payload["runs"][0]
+    vector_runs = payload["baselines"][0]["runs"]
+    keyword_runs = payload["baselines"][1]["runs"]
+    assert [run["k"] for run in vector_runs] == [1, 3, 5]
+    assert [run["k"] for run in keyword_runs] == [1, 3, 5]
+
+    first_run = vector_runs[0]
     assert first_run["mean_recall_at_k"] == pytest.approx(5 / 6)
 
-    third_run = payload["runs"][1]
+    third_run = vector_runs[1]
     assert third_run["mean_recall_at_k"] == 1.0
     assert third_run["mean_reciprocal_rank"] == pytest.approx(11 / 12)
 
-    assert all(run["average_latency_ms"] >= 0.0 for run in payload["runs"])
+    assert all(
+        run["average_latency_ms"] >= 0.0
+        for baseline in payload["baselines"]
+        for run in baseline["runs"]
+    )
 
     get_retriever.cache_clear()

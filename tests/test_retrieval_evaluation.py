@@ -14,6 +14,28 @@ from backend.app.services.retrieval_evaluation import (
 )
 
 
+@pytest.mark.parametrize(
+    ("case_id", "query", "relevant_chunk_ids", "message"),
+    [
+        ("", "question", frozenset({"chunk-a"}), "case_id"),
+        ("case-001", "", frozenset({"chunk-a"}), "query"),
+        ("case-001", "question", frozenset(), "relevant_chunk_ids"),
+    ],
+)
+def test_evaluation_case_rejects_invalid_fields(
+    case_id: str,
+    query: str,
+    relevant_chunk_ids: frozenset[str],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        RetrievalEvaluationCase(
+            case_id=case_id,
+            query=query,
+            relevant_chunk_ids=relevant_chunk_ids,
+        )
+
+
 def test_recall_at_k_returns_one_when_all_relevant_chunks_are_found() -> None:
     score = recall_at_k(
         ["chunk-a", "chunk-b"],

@@ -13,16 +13,15 @@ class RetrievalEvaluationCase:
     query: str
     relevant_chunk_ids: frozenset[str]
 
+    def __post_init__(self) -> None:
+        if not self.case_id.strip():
+            raise ValueError("case_id must not be blank")
 
-def __post_init__(self) -> None:
-    if not self.case_id.strip():
-        raise ValueError("case_id must not be blank")
+        if not self.query.strip():
+            raise ValueError("query must not be blank")
 
-    if not self.query.strip():
-        raise ValueError("query must not be blank")
-
-    if not self.relevant_chunk_ids:
-        raise ValueError("relevant_chunk_ids must not be empty")
+        if not self.relevant_chunk_ids:
+            raise ValueError("relevant_chunk_ids must not be empty")
 
 
 @dataclass(frozen=True)
