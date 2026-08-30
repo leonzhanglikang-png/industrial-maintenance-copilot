@@ -37,3 +37,19 @@ class Retriever(Protocol):
         *,
         limit: int = 5,
     ) -> list[SearchResult]: ...
+
+
+@runtime_checkable
+class SearchIndex(Retriever, ChunkIndexer, Protocol):
+    """A searchable index that also accepts new chunks."""
+
+
+@runtime_checkable
+class Reranker(Protocol):
+    def rerank(
+        self,
+        query: str,
+        results: Sequence[SearchResult],
+        *,
+        limit: int = 5,
+    ) -> list[SearchResult]: ...

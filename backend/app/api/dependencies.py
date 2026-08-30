@@ -1,9 +1,20 @@
+from collections.abc import Sequence
 from functools import lru_cache
 from pathlib import Path
 
 from backend.app.domain.documents import Chunk
 from backend.app.infrastructure.embeddings import (
     DeterministicHashEmbeddingProvider,
+)
+from backend.app.infrastructure.hybrid_retriever import (
+    ReciprocalRankFusionIndex,
+)
+from backend.app.infrastructure.keyword_retriever import (
+    InMemoryBM25Retriever,
+)
+from backend.app.infrastructure.reranking import (
+    RerankingSearchIndex,
+    TokenOverlapReranker,
 )
 from backend.app.infrastructure.vector_retriever import (
     InMemoryVectorRetriever,
@@ -27,11 +38,43 @@ def get_demo_chunks() -> tuple[Chunk, ...]:
     return tuple(chunks)
 
 
-@lru_cache
-def get_retriever() -> InMemoryVectorRetriever:
+def build_vector_retriever(
+    chunks: Sequence[Chunk],
+) -> InMemoryVectorRetriever:
     embedding_provider = DeterministicHashEmbeddingProvider(dimension=128)
 
     return InMemoryVectorRetriever(
-        get_demo_chunks(),
+        chunks,
         embedding_provider,
     )
+
+
+def build_keyword_retriever(
+    chunks: Sequence[Chunk],
+) -> InMemoryBM25Retriever:
+    return InMemoryBM25Retriever(chunks)
+
+
+def build_hybrid_index(
+    chunks: Sequence[Chunk],
+) -> ReciprocalRankFusionIndex:
+    return ReciprocalRankFusionIndex(
+        [
+            build_vector_retriever(chunks),
+            build_keyword_retriever(chunks),
+        ]
+    )
+
+
+def build_reranked_hybrid_index(
+    chunks: Sequence[Chunk],
+) -> RerankingSearchIndex:
+    return RerankingSearchIndex(
+        build_hybrid_index(chunks),
+        TokenOverlapReranker(),
+    )
+
+
+@lru_cache
+def get_retriever() -> RerankingSearchIndex:
+    return build_reranked_hybrid_index(get_demo_chunks())

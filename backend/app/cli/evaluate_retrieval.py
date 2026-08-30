@@ -1,9 +1,12 @@
 import json
 from pathlib import Path
 
-from backend.app.api.dependencies import get_demo_chunks, get_retriever
-from backend.app.infrastructure.keyword_retriever import (
-    InMemoryBM25Retriever,
+from backend.app.api.dependencies import (
+    build_hybrid_index,
+    build_keyword_retriever,
+    build_reranked_hybrid_index,
+    build_vector_retriever,
+    get_demo_chunks,
 )
 from backend.app.ports.retrieval import Retriever
 from backend.app.services.retrieval_evaluation import (
@@ -46,15 +49,26 @@ def _evaluate_baseline(
 
 def build_evaluation_summary() -> dict[str, object]:
     cases = load_evaluation_cases(EVALUATION_CASES_PATH)
+    chunks = get_demo_chunks()
     baselines = [
         _evaluate_baseline(
             "deterministic-hash-embedding",
-            get_retriever(),
+            build_vector_retriever(chunks),
             cases,
         ),
         _evaluate_baseline(
             "bm25-keyword",
-            InMemoryBM25Retriever(get_demo_chunks()),
+            build_keyword_retriever(chunks),
+            cases,
+        ),
+        _evaluate_baseline(
+            "rrf-hybrid",
+            build_hybrid_index(chunks),
+            cases,
+        ),
+        _evaluate_baseline(
+            "rrf-hybrid-token-overlap-reranked",
+            build_reranked_hybrid_index(chunks),
             cases,
         ),
     ]

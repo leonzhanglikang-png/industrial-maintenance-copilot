@@ -11,21 +11,25 @@
 ## 当前已实现
 
 - FastAPI 应用工厂和环境配置；
-- `GET /api/v1/health` 健康检查接口；
-- `GET /api/v1/info` 项目信息接口；
-- Pydantic 响应 Schema；
-- Pytest 接口测试和 Ruff 代码检查。
+- PDF、Markdown 和纯文本解析，并保留来源与 PDF 页码；
+- 具有稳定 ID、重叠窗口和引用元数据的文档切块；
+- 文档上传、动态索引和可追溯搜索 API；
+- 确定性哈希向量检索与 BM25 关键词检索；
+- 基于 Reciprocal Rank Fusion（RRF）的排名融合；
+- 基于查询词覆盖率的轻量候选重排；
+- 可复现的 Recall@K、MRR 和平均延迟离线评测；
+- Pytest 自动化测试和 Ruff 代码质量检查。
 
-当前处于 Milestone 1：定义文档与文本块模型，为文档导入和基础检索建立数据结构。
+当前处于 Milestone 2：扩充人工标注评测集，并验证不同检索方案的真实效果。
+
+当前演示使用确定性哈希向量，目的是在不依赖外部模型的情况下验证完整检索链路，不能将它等同于语义 Embedding。现有 6 条小型评测集上四种检索方案的 Recall/MRR 暂时相同，因此尚不能声称混合检索带来了质量提升。
 
 ## 计划实现
 
-1. 导入 PDF、Markdown 和纯文本设备资料；
-2. 使用向量检索与关键词检索查找相关证据；
-3. 对检索结果重排序并保留来源和页码；
-4. 查询历史故障记录并分析传感器数据；
-5. 通过受约束的 Agent 生成检查建议和工具轨迹；
-6. 建立离线评测、日志、容器化和线上部署。
+1. 扩充检索评测集并接入真实语义 Embedding；
+2. 查询历史故障记录并分析传感器数据；
+3. 通过受约束的 Agent 生成检查建议和工具轨迹；
+4. 增加演示界面、日志、容器化、CI 和线上部署。
 
 ## 本地运行
 
@@ -40,7 +44,15 @@ UV_CACHE_DIR=.uv-cache uv run uvicorn backend.app.main:app --reload
 
 - 健康检查：`http://127.0.0.1:8000/api/v1/health`
 - 项目信息：`http://127.0.0.1:8000/api/v1/info`
+- 文档上传：`POST http://127.0.0.1:8000/api/v1/documents/upload`
+- 混合检索：`POST http://127.0.0.1:8000/api/v1/search`
 - API 文档：`http://127.0.0.1:8000/docs`
+
+运行四组检索基线评测：
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
+```
 
 ## 目录结构
 

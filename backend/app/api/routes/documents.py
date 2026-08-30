@@ -3,9 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from backend.app.api.dependencies import get_retriever
-from backend.app.infrastructure.vector_retriever import (
-    InMemoryVectorRetriever,
-)
+from backend.app.ports.retrieval import SearchIndex
 from backend.app.schemas.documents import DocumentUploadResponse
 from backend.app.services.document_ingestion import (
     MAX_UPLOAD_BYTES,
@@ -22,7 +20,7 @@ router = APIRouter(tags=["documents"])
 async def upload_document(
     file: Annotated[UploadFile, File(...)],
     retriever: Annotated[
-        InMemoryVectorRetriever,
+        SearchIndex,
         Depends(get_retriever),
     ],
 ) -> DocumentUploadResponse:
