@@ -3,6 +3,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from backend.app.domain.documents import Chunk
+from backend.app.infrastructure.answer_generators import (
+    ExtractiveAnswerGenerator,
+)
 from backend.app.infrastructure.embeddings import (
     DeterministicHashEmbeddingProvider,
 )
@@ -21,6 +24,7 @@ from backend.app.infrastructure.vector_retriever import (
 )
 from backend.app.services.document_chunker import chunk_document
 from backend.app.services.document_parser import parse_text_document
+from backend.app.services.rag_answering import RagAnswerService
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEMO_MANUAL_PATH = PROJECT_ROOT / "data" / "raw" / "demo_pump_manual.md"
@@ -78,3 +82,10 @@ def build_reranked_hybrid_index(
 @lru_cache
 def get_retriever() -> RerankingSearchIndex:
     return build_reranked_hybrid_index(get_demo_chunks())
+
+
+def get_rag_answer_service() -> RagAnswerService:
+    return RagAnswerService(
+        get_retriever(),
+        ExtractiveAnswerGenerator(),
+    )

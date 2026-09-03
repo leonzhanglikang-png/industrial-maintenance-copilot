@@ -15,13 +15,18 @@ PDF / Markdown / TXT
        RRF 融合
           |
    查询词覆盖率重排
-          |
-POST /api/v1/search
-          |
-带来源、页码和分数的文本块
+          +--------------------+
+          |                    |
+POST /api/v1/search     证据句选择与拒答
+          |                    |
+   可追溯文本块          引用候选合法性校验
+                               |
+                    POST /api/v1/answers
+                               |
+                  带 [S1] 引用与安全提示的回答
 ```
 
-`POST /api/v1/documents/upload` 会把同一批新文本块写入两个底层索引；搜索接口通过统一的 `SearchIndex` 抽象使用混合检索器，因此路由不依赖具体实现。
+`POST /api/v1/documents/upload` 会把同一批新文本块写入两个底层索引；搜索接口通过统一的 `SearchIndex` 抽象使用混合检索器，因此路由不依赖具体实现。`RagAnswerService` 负责检索与回答生成编排，并拒绝生成器引用不在本次候选集中的文本块。
 
 ## 最终请求流程
 
