@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from backend.app.api.routes.agent import router as agent_router
 from backend.app.api.routes.answers import router as answers_router
 from backend.app.api.routes.documents import router as documents_router
 from backend.app.api.routes.health import router as health_router
@@ -15,6 +16,7 @@ def create_app() -> FastAPI:
         version=settings.app_version,
         description="Evidence-grounded maintenance assistant for industrial IoT equipment.",
     )
+    application.include_router(agent_router, prefix=settings.api_prefix)
     application.include_router(answers_router, prefix=settings.api_prefix)
     application.include_router(health_router, prefix=settings.api_prefix)
     application.include_router(

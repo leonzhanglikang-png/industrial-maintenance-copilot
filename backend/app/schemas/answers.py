@@ -33,4 +33,5 @@ class AnswerResponse(BaseModel):
     grounded: bool
     retrieved_evidence_count: int = Field(ge=0)
     citations: list[AnswerCitationResponse]
+    generation_method: str
     safety_notice: str

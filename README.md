@@ -18,19 +18,21 @@
 - 基于 Reciprocal Rank Fusion（RRF）的排名融合；
 - 基于查询词覆盖率的轻量候选重排；
 - 可拒答的证据摘录生成器，以及经过检索候选校验的 `[S1]` 引用；
+- 可显式启用的 OpenAI Responses 回答生成器，无引用或越界引用会被拒绝；
+- 只读的历史故障查询和传感器区间分析工具；
+- 最多执行三步、返回完整工具轨迹的确定性策略 Agent；
 - 可复现的 Recall@K、MRR 和平均延迟离线评测；
 - Pytest 自动化测试和 Ruff 代码质量检查。
 
-当前处于 Milestone 2：扩充人工标注评测集，并验证不同检索方案的真实效果。
+当前已经完成 Milestone 3 的可演示纵向功能；Milestone 2 的评测集扩充和真实质量提升仍未完成。
 
-当前演示使用确定性哈希向量和证据摘录式回答生成器，目的是在不依赖外部模型的情况下验证完整 RAG 链路。它们不能被等同于语义 Embedding 和大模型生成。现有 6 条小型评测集上四种检索方案的 Recall/MRR 暂时相同，因此尚不能声称混合检索带来了质量提升。
+默认演示使用确定性哈希向量和证据摘录式回答生成器，目的是在不依赖外部模型的情况下验证完整 RAG/Agent 链路。设置 `ANSWER_GENERATOR=openai` 后可改用 Responses API，但没有密钥也能运行全部离线功能。哈希向量不能被等同于语义 Embedding；现有 6 条小型评测集上四种检索方案的 Recall/MRR 暂时相同，因此尚不能声称混合检索带来了质量提升。
 
 ## 计划实现
 
-1. 扩充检索评测集，并接入真实语义 Embedding 与可配置大模型；
-2. 查询历史故障记录并分析传感器数据；
-3. 通过受约束的 Agent 生成检查建议和工具轨迹；
-4. 增加演示界面、日志、容器化、CI 和线上部署。
+1. 扩充检索评测集并接入真实语义 Embedding；
+2. 增加持久化存储、演示界面和结构化日志；
+3. 完成容器化、CI、线上部署和求职材料。
 
 ## 本地运行
 
@@ -48,7 +50,16 @@ UV_CACHE_DIR=.uv-cache uv run uvicorn backend.app.main:app --reload
 - 文档上传：`POST http://127.0.0.1:8000/api/v1/documents/upload`
 - 混合检索：`POST http://127.0.0.1:8000/api/v1/search`
 - 引用回答：`POST http://127.0.0.1:8000/api/v1/answers`
+- Agent 工作流：`POST http://127.0.0.1:8000/api/v1/agent/runs`
 - API 文档：`http://127.0.0.1:8000/docs`
+
+如需显式启用模型回答，在本机 `.env` 中配置，不要提交真实密钥：
+
+```dotenv
+ANSWER_GENERATOR=openai
+LLM_API_KEY=your-local-key
+LLM_MODEL=your-enabled-model
+```
 
 运行四组检索基线评测：
 

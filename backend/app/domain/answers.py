@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 class AnswerDraft(BaseModel):
     answer: str = Field(min_length=1)
     cited_chunk_ids: list[str] = Field(default_factory=list)
+    generation_method: str = Field(default="unknown", min_length=1)
 
     @field_validator("cited_chunk_ids")
     @classmethod
@@ -34,4 +35,5 @@ class GroundedAnswer(BaseModel):
     grounded: bool
     retrieved_evidence_count: int = Field(ge=0)
     citations: list[AnswerCitation]
+    generation_method: str
     safety_notice: str

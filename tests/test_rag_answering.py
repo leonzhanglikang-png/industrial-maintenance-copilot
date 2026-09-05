@@ -80,6 +80,7 @@ def test_rag_service_builds_verified_citation_metadata() -> None:
     assert result.citations[0].source == "pump_manual.pdf"
     assert result.citations[0].page_number == 7
     assert result.citations[0].score == 0.92
+    assert result.generation_method == "unknown"
 
 
 def test_rag_service_rejects_unknown_generator_citation() -> None:

@@ -89,7 +89,10 @@ class ExtractiveAnswerGenerator:
         query_tokens = _content_tokens(query)
 
         if not query_tokens or not evidence:
-            return AnswerDraft(answer=NO_EVIDENCE_ANSWER)
+            return AnswerDraft(
+                answer=NO_EVIDENCE_ANSWER,
+                generation_method="extractive",
+            )
 
         candidates = self._rank_sentence_candidates(
             query_tokens,
@@ -98,7 +101,10 @@ class ExtractiveAnswerGenerator:
         selected = candidates[: self._max_citations]
 
         if not selected:
-            return AnswerDraft(answer=NO_EVIDENCE_ANSWER)
+            return AnswerDraft(
+                answer=NO_EVIDENCE_ANSWER,
+                generation_method="extractive",
+            )
 
         statements = [
             f"{_truncate(candidate.text, self._max_sentence_characters)} [S{index}]"
@@ -108,6 +114,7 @@ class ExtractiveAnswerGenerator:
         return AnswerDraft(
             answer="Based on the indexed maintenance documents: " + " ".join(statements),
             cited_chunk_ids=[candidate.chunk_id for candidate in selected],
+            generation_method="extractive",
         )
 
     def _rank_sentence_candidates(

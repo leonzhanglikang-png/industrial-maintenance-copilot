@@ -54,6 +54,7 @@ class RagAnswerService:
             grounded=bool(citations),
             retrieved_evidence_count=len(evidence),
             citations=citations,
+            generation_method=draft.generation_method,
             safety_notice=SAFETY_NOTICE,
         )
 

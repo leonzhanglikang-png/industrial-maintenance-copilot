@@ -35,6 +35,7 @@ def test_answer_api_returns_grounded_answer_and_citation() -> None:
     assert body["citations"][0]["citation_id"] == "S1"
     assert body["citations"][0]["source"] == "demo_pump_manual.md"
     assert "discharge pressure" in body["citations"][0]["excerpt"].lower()
+    assert body["generation_method"] == "extractive"
     assert "human verification" in body["safety_notice"]
 
 

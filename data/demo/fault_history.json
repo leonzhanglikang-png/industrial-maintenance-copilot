@@ -1,0 +1,29 @@
+[
+  {
+    "fault_id": "fault-2026-001",
+    "equipment_id": "pump-001",
+    "occurred_at": "2026-07-12",
+    "symptom": "Low discharge pressure",
+    "cause": "Blocked suction strainer",
+    "corrective_action": "Isolated the pump and cleaned the suction strainer",
+    "resolved": true
+  },
+  {
+    "fault_id": "fault-2026-002",
+    "equipment_id": "pump-001",
+    "occurred_at": "2026-08-03",
+    "symptom": "High bearing temperature",
+    "cause": "Insufficient lubrication",
+    "corrective_action": "Stopped the pump and restored the specified lubrication level",
+    "resolved": true
+  },
+  {
+    "fault_id": "fault-2026-003",
+    "equipment_id": "compressor-001",
+    "occurred_at": "2026-08-18",
+    "symptom": "Low oil pressure alarm",
+    "cause": "Clogged oil filter",
+    "corrective_action": "Stopped the compressor and replaced the oil filter",
+    "resolved": true
+  }
+]

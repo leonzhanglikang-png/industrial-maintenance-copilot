@@ -31,5 +31,6 @@ def answer_question(
         citations=[
             AnswerCitationResponse(**citation.model_dump()) for citation in result.citations
         ],
+        generation_method=result.generation_method,
         safety_notice=result.safety_notice,
     )
