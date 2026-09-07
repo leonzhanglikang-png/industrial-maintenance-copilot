@@ -1,5 +1,6 @@
 import re
 
+from backend.app.core.errors import CitationValidationError
 from backend.app.domain.answers import (
     AnswerCitation,
     GroundedAnswer,
@@ -70,7 +71,7 @@ def _build_citations(
         result = evidence_by_chunk_id.get(chunk_id)
 
         if result is None:
-            raise ValueError(f"generator cited unknown chunk: {chunk_id}")
+            raise CitationValidationError(f"generator cited unknown chunk: {chunk_id}")
 
         chunk = result.chunk
         citations.append(

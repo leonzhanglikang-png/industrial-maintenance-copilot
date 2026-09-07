@@ -2,8 +2,9 @@ import re
 from collections.abc import Sequence
 from typing import Protocol
 
-from openai import OpenAI
+from openai import APIError, OpenAI
 
+from backend.app.core.errors import CitationValidationError, ModelServiceError
 from backend.app.domain.answers import AnswerDraft
 from backend.app.infrastructure.answer_generators import NO_EVIDENCE_ANSWER
 from backend.app.ports.retrieval import SearchResult
@@ -79,11 +80,14 @@ class OpenAIResponsesAnswerGenerator:
         if not evidence:
             return self._fallback()
 
-        response = self._client.responses.create(
-            model=self._model,
-            instructions=GENERATOR_INSTRUCTIONS,
-            input=_build_model_input(query, evidence),
-        )
+        try:
+            response = self._client.responses.create(
+                model=self._model,
+                instructions=GENERATOR_INSTRUCTIONS,
+                input=_build_model_input(query, evidence),
+            )
+        except APIError as exc:
+            raise ModelServiceError("Model service is temporarily unavailable") from exc
         answer = response.output_text.strip()
 
         if not answer or answer == NO_EVIDENCE_ANSWER:
@@ -95,7 +99,17 @@ class OpenAIResponsesAnswerGenerator:
             return self._fallback()
 
         if any(number > len(evidence) for number in citation_numbers):
-            raise ValueError("model cited an unknown source marker")
+            raise CitationValidationError("model cited an unknown source marker")
+
+        # The public citation list follows first appearance, not retrieval order.
+        # Replace every marker in one pass so swapping S2/S1 cannot cascade.
+        canonical_numbers = {
+            original: canonical for canonical, original in enumerate(citation_numbers, start=1)
+        }
+        answer = CITATION_PATTERN.sub(
+            lambda match: f"[S{canonical_numbers[int(match.group(1))]}]",
+            answer,
+        )
 
         return AnswerDraft(
             answer=answer,
@@ -134,7 +148,7 @@ def _ordered_unique_citation_numbers(answer: str) -> list[int]:
         number = int(match.group(1))
 
         if number < 1:
-            raise ValueError("model cited an invalid source marker")
+            raise CitationValidationError("model cited an invalid source marker")
 
         if number not in numbers:
             numbers.append(number)

@@ -99,6 +99,7 @@ def test_openai_generator_builds_grounded_request_and_maps_citations() -> None:
     )
 
     assert draft.cited_chunk_ids == ["chunk-seal", "chunk-pressure"]
+    assert draft.answer == "Isolate power first. [S1] Then inspect the suction line. [S2] [S1]"
     assert draft.generation_method == "openai-responses:test-model"
     assert len(client.responses.calls) == 1
 
@@ -176,3 +177,53 @@ def test_openai_generator_rejects_blank_query() -> None:
 
     with pytest.raises(ValueError, match="query"):
         generator.generate("  ", make_evidence())
+
+
+@pytest.mark.parametrize(
+    ("output", "expected_answer", "expected_ids"),
+    [
+        ("Isolate power. [S2]", "Isolate power. [S1]", ["chunk-seal"]),
+        (
+            "Seal. [S2] Pressure. [S1] Seal again. [S2]",
+            "Seal. [S1] Pressure. [S2] Seal again. [S1]",
+            ["chunk-seal", "chunk-pressure"],
+        ),
+    ],
+)
+def test_model_citations_remain_consistent_through_rag_service(
+    output: str, expected_answer: str, expected_ids: list[str]
+) -> None:
+    from backend.app.services.rag_answering import RagAnswerService
+
+    class EvidenceRetriever:
+        def search(self, query: str, *, limit: int = 5) -> list[SearchResult]:
+            return list(make_evidence())[:limit]
+
+    generator, _ = build_generator(output)
+    result = RagAnswerService(EvidenceRetriever(), generator).answer("pump pressure")
+    assert result.answer == expected_answer
+    assert [citation.chunk_id for citation in result.citations] == expected_ids
+    assert [citation.citation_id for citation in result.citations] == [
+        f"S{index}" for index in range(1, len(expected_ids) + 1)
+    ]
+
+
+def test_model_transport_errors_are_converted_without_provider_body() -> None:
+    import httpx
+    from openai import APIConnectionError
+
+    from backend.app.core.errors import ModelServiceError
+
+    class UnavailableResponses:
+        def create(self, **kwargs: str) -> FakeResponse:
+            raise APIConnectionError(
+                message="sensitive-provider-body",
+                request=httpx.Request("POST", "https://example.com"),
+            )
+
+    client = FakeClient("")
+    client.responses = UnavailableResponses()
+    generator = OpenAIResponsesAnswerGenerator(api_key="", model="fake", client=client)
+    with pytest.raises(ModelServiceError, match="temporarily unavailable") as error:
+        generator.generate("pump", make_evidence())
+    assert "sensitive-provider-body" not in str(error.value)
