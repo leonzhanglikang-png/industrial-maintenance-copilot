@@ -56,6 +56,18 @@ test("mobile view supports insufficient-evidence answers without horizontal scro
   await page.locator("#query").fill("quantum entanglement superconducting qubits");
   await page.locator("#run-button").click();
   await expect(page.locator("#result-notice")).toContainText("没有找到足够的文档依据");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await page.screenshot({ path: "artifacts/workbench-mobile.png", fullPage: true });
+  const layout = await page.evaluate(() => ({
+    width: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    overflow: Array.from(document.querySelectorAll("body *"))
+      .filter((element) => element.getBoundingClientRect().right > window.innerWidth + 1)
+      .map((element) => ({
+        tag: element.tagName,
+        id: element.id,
+        className: element.className,
+        right: element.getBoundingClientRect().right,
+      })),
+  }));
+  expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.width + 1);
 });
