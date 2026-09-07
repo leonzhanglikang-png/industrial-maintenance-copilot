@@ -21,3 +21,6 @@ logs/*
 !logs/.gitkeep
 # Local learning notes
 TODAY.md
+node_modules/
+frontend/test-results/
+frontend/artifacts/

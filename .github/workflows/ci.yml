@@ -1,0 +1,68 @@
+name: 验证与容器冒烟测试
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          version: "0.12.0"
+          enable-cache: true
+      - run: uv python install 3.13
+      - run: uv sync --frozen --python 3.13
+      - run: uv run --frozen python -m pytest
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
+      - run: node --check frontend/static/app.js
+      - run: git diff --check
+      - name: 安装浏览器测试依赖
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: 构建生产镜像
+        run: docker build -t maintenance-copilot:ci .
+      - name: 验证容器启动、访问控制与重启持久化
+        shell: bash
+        env:
+          API_ACCESS_TOKEN: ci-only-local-smoke-token-not-for-deployment
+        run: |
+          docker volume create copilot-ci-data
+          docker run -d --name copilot-ci -p 127.0.0.1:8000:8000 \
+            -e API_ACCESS_TOKEN -v copilot-ci-data:/app/data/processed maintenance-copilot:ci
+          trap 'docker logs copilot-ci; docker rm -f copilot-ci; docker volume rm copilot-ci-data' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/api/v1/health; then break; fi
+            sleep 1
+          done
+          python tests/smoke_container.py
+          docker restart copilot-ci
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/api/v1/health; then break; fi
+            sleep 1
+          done
+          python tests/smoke_container.py --verify-restart
+          npm --prefix frontend test
+      - name: 保存演示截图和浏览器测试结果
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: workbench-browser-check
+          path: |
+            frontend/artifacts/
+            frontend/test-results/
+          if-no-files-found: ignore
+          retention-days: 7

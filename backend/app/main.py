@@ -6,6 +6,8 @@ from backend.app.api.routes.documents import router as documents_router
 from backend.app.api.routes.health import router as health_router
 from backend.app.api.routes.info import router as info_router
 from backend.app.api.routes.search import router as search_router
+from backend.app.api.runtime import install_runtime
+from backend.app.api.workbench import install_workbench
 from backend.app.core.config import get_settings
 
 
@@ -28,6 +30,8 @@ def create_app() -> FastAPI:
         search_router,
         prefix=settings.api_prefix,
     )
+    install_runtime(application, settings)
+    install_workbench(application, settings)
     return application
 
 

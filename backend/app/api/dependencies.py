@@ -3,10 +3,12 @@ from functools import lru_cache
 from pathlib import Path
 
 from backend.app.core.config import get_settings
+from backend.app.core.errors import ModelConfigurationError
 from backend.app.domain.documents import Chunk
 from backend.app.infrastructure.answer_generators import (
     ExtractiveAnswerGenerator,
 )
+from backend.app.infrastructure.chunk_store import SQLiteChunkStore
 from backend.app.infrastructure.embeddings import (
     DeterministicHashEmbeddingProvider,
 )
@@ -23,6 +25,7 @@ from backend.app.infrastructure.maintenance_tools import (
 from backend.app.infrastructure.openai_answer_generator import (
     OpenAIResponsesAnswerGenerator,
 )
+from backend.app.infrastructure.persistent_retriever import PersistentSearchIndex
 from backend.app.infrastructure.reranking import (
     RerankingSearchIndex,
     TokenOverlapReranker,
@@ -91,8 +94,13 @@ def build_reranked_hybrid_index(
 
 
 @lru_cache
-def get_retriever() -> RerankingSearchIndex:
-    return build_reranked_hybrid_index(get_demo_chunks())
+def get_retriever() -> PersistentSearchIndex:
+    store_path = get_settings().chunk_store_path
+    if not store_path.is_absolute():
+        store_path = PROJECT_ROOT / store_path
+    return PersistentSearchIndex(
+        SQLiteChunkStore(store_path), build_reranked_hybrid_index, get_demo_chunks()
+    )
 
 
 @lru_cache
@@ -108,7 +116,9 @@ def get_answer_generator() -> AnswerGenerator:
     model = (settings.llm_model or "").strip()
 
     if not api_key or not model:
-        raise ValueError("LLM_API_KEY and LLM_MODEL are required when ANSWER_GENERATOR=openai")
+        raise ModelConfigurationError(
+            "LLM_API_KEY and LLM_MODEL are required when ANSWER_GENERATOR=openai"
+        )
 
     return OpenAIResponsesAnswerGenerator(
         api_key=api_key,

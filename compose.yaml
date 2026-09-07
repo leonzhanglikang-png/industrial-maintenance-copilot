@@ -1,0 +1,21 @@
+services:
+  copilot:
+    build: .
+    ports:
+      - "127.0.0.1:${PORT:-8000}:8000"
+    environment:
+      APP_ENV: production
+      API_ACCESS_TOKEN: ${API_ACCESS_TOKEN:?Set a random token of at least 24 characters}
+      ANSWER_GENERATOR: ${ANSWER_GENERATOR:-extractive}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-3}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+    volumes:
+      - copilot-documents:/app/data/processed
+    restart: unless-stopped
+
+volumes:
+  copilot-documents:

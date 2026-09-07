@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="上传设备手册，检索维护证据，结合故障历史和传感器读数完成运维分析。">
+  <title>工业运维工作台 · Maintenance Copilot</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script type="module" src="/static/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#query">跳到问题输入</a>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="工作台首页"><span class="brand-mark">M</span><span>MAINTENANCE<br><strong>COPILOT</strong></span></a>
+    <div class="sidebar-label">工作空间</div>
+    <a class="nav-item active" href="#workspace"><span>01</span> 运维分析</a>
+    <a class="nav-item" href="#knowledge"><span>02</span> 文档知识库</a>
+    <a class="nav-item" href="/docs" target="_blank" rel="noreferrer"><span>03</span> API 文档 ↗</a>
+    <div class="sidebar-footer"><span class="status-dot"></span><span id="service-status">连接服务中…</span><p>维护操作须由具备资质的人员核验。</p></div>
+  </aside>
+  <main id="workspace">
+    <header class="topbar"><span>设备维护 / 分析工作台</span><span class="mode-badge" id="generation-mode">读取配置…</span></header>
+    <div class="page-heading"><div><p class="eyebrow">OPERATIONS DESK</p><h1>运维分析</h1><p>查手册、看历史，核对每一条依据。</p></div><span class="version-tag">演示工作台</span></div>
+    <section class="access-panel" id="access-panel" hidden aria-label="访问验证">
+      <label for="access-token">访问口令</label><div class="inline"><input id="access-token" type="password" autocomplete="off" placeholder="输入部署者提供的访问口令"><button id="unlock" type="button" class="secondary">连接知识库</button></div><p class="muted">这是工作台访问口令，不是模型 API Key。只保留在当前页面内存中。</p>
+    </section>
+    <div class="workspace-grid">
+      <section class="panel query-panel" aria-labelledby="question-heading">
+        <div class="panel-heading"><h2 id="question-heading">提出问题</h2><span class="small-label">01 / 输入</span></div>
+        <form id="analysis-form">
+          <fieldset class="mode-selector"><legend class="sr-only">分析方式</legend>
+            <label><input type="radio" name="mode" value="agent" checked><span>综合分析</span></label>
+            <label><input type="radio" name="mode" value="answers"><span>引用问答</span></label>
+            <label><input type="radio" name="mode" value="search"><span>原文检索</span></label>
+          </fieldset>
+          <label class="field-label" for="query">设备遇到了什么问题？</label>
+          <textarea id="query" name="query" rows="5" maxlength="500" required placeholder="描述故障现象，或从下方选择一个示例问题…"></textarea>
+          <div class="sample-row" aria-label="示例问题"><button type="button" data-example="pressure">出口压力偏低</button><button type="button" data-example="temperature">轴承温度偏高</button><button type="button" data-example="unrelated">试试证据不足</button></div>
+          <p class="muted input-hint">内置手册为英文，示例问题使用英文以匹配当前检索基线。</p>
+          <div id="agent-options">
+            <div class="field-row"><div><label class="field-label" for="equipment-id">设备编号 <span class="optional">选填</span></label><input id="equipment-id" maxlength="100" placeholder="如 pump-001"></div><div><label class="field-label" for="evidence-limit">证据条数</label><select id="evidence-limit"><option>1</option><option selected>3</option><option>5</option><option>10</option></select></div></div>
+            <details class="sensor-options"><summary>传感器读数 <span class="optional">选填</span></summary><p class="muted">仅比较你提供的上下限；系统不会推断设备安全阈值。</p><div id="sensor-rows"></div><button class="text-button" id="add-sensor" type="button">＋ 添加读数</button></details>
+          </div>
+          <button class="primary submit-button" id="run-button" type="submit" disabled>开始分析 <span aria-hidden="true">→</span></button>
+          <p id="request-status" class="request-status" role="status" aria-live="polite">正在连接服务…</p>
+        </form>
+      </section>
+      <section class="panel result-panel" aria-labelledby="result-heading">
+        <div class="panel-heading"><h2 id="result-heading">分析结果</h2><span class="small-label" id="result-meta">02 / 输出</span></div>
+        <div id="result-empty" class="empty-state"><div class="empty-symbol" aria-hidden="true">↗</div><h3>从一个设备问题开始</h3><p>提交后在这里查看回答、原文引用和工具执行记录。</p><div class="flow-labels"><span>检索证据</span><span>核对来源</span><span>查看结果</span></div></div>
+        <div id="result-content" hidden>
+          <div id="result-notice" class="result-notice" role="status"></div>
+          <div id="answer-text" class="answer-text"></div>
+          <section id="citations-section"><h3>证据来源</h3><div id="citations" class="citations"></div></section>
+          <section id="trace-section" hidden><h3>工具执行记录</h3><ol id="tool-trace" class="tool-trace"></ol></section>
+          <p class="safety-note">涉及设备操作的建议须经具备资质的人员核验。传感器范围来自本次输入。</p>
+          <details class="raw-response"><summary>查看原始响应</summary><pre id="raw-response"></pre></details>
+        </div>
+      </section>
+    </div>
+    <section id="knowledge" class="panel knowledge-panel" aria-labelledby="knowledge-heading">
+      <div class="panel-heading"><div><h2 id="knowledge-heading">文档知识库</h2><p class="muted">支持 TXT、Markdown、可提取文字的 PDF，单文件最大 5 MiB。</p></div><span id="document-count" class="small-label">尚未加载</span></div>
+      <form id="upload-form" class="upload-form"><label class="upload-picker" for="upload-file"><span class="upload-icon" aria-hidden="true">↑</span><span><strong>选择设备手册</strong><span class="muted">解析后的文字和来源会保存在本机，重启后仍可检索。</span></span><input id="upload-file" type="file" accept=".txt,.md,.pdf" required></label><button id="upload-button" type="submit" class="secondary" disabled>上传并建立索引</button></form>
+      <p id="upload-status" role="status" aria-live="polite" class="request-status"></p>
+      <ul id="document-list" class="document-list"></ul>
+    </section>
+    <footer class="page-footer"><span>证据辅助判断 · 操作由人确认</span><span id="storage-status">正在读取知识库…</span></footer>
+  </main>
+</body>
+</html>
