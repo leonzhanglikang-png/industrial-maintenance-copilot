@@ -6,6 +6,20 @@ from pathlib import Path
 import pytest
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    # Some tests import the shared app during collection, before fixtures run.
+    # Configure offline test defaults first; restore the process environment on exit.
+    environment = pytest.MonkeyPatch()
+    for name, value in {
+        "ANSWER_GENERATOR": "extractive",
+        "APP_ENV": "development",
+        "API_ACCESS_TOKEN": "",
+        "LLM_API_KEY": "",
+    }.items():
+        environment.setenv(name, value)
+    config.add_cleanup(environment.undo)
+
+
 @pytest.fixture(autouse=True)
 def isolated_runtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

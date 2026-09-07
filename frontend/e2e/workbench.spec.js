@@ -26,6 +26,7 @@ test("three-tool workflow shows answer, citations and trace", async ({ page }) =
   await expect(page.locator("#citations")).toContainText("demo_pump_manual.md");
   await expect(page.locator("#answer-text")).toContainText("above_range");
   await expect(page.locator("#access-token")).toHaveValue("");
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: "artifacts/workbench-desktop.png", fullPage: true });
   expect(errors).toEqual([]);
 });
@@ -56,6 +57,7 @@ test("mobile view supports insufficient-evidence answers without horizontal scro
   await page.locator("#query").fill("quantum entanglement superconducting qubits");
   await page.locator("#run-button").click();
   await expect(page.locator("#result-notice")).toContainText("没有找到足够的文档依据");
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: "artifacts/workbench-mobile.png", fullPage: true });
   const layout = await page.evaluate(() => ({
     width: window.innerWidth,

@@ -1,3 +1,8 @@
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from backend.app.api.dependencies import get_retriever
@@ -47,3 +52,22 @@ def test_custom_api_prefix_is_exposed_and_routed(monkeypatch) -> None:
     client = TestClient(create_app())
     assert client.get("/app-config").json()["api_prefix"] == "/api/demo"
     assert client.get("/api/demo/health").status_code == 200
+
+
+def test_test_collection_ignores_local_production_credentials() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/test_info.py", "-q"],
+        cwd=Path(__file__).resolve().parents[1],
+        env={
+            **os.environ,
+            "APP_ENV": "production",
+            "API_ACCESS_TOKEN": "local-test-only-token-not-a-secret",
+            "ANSWER_GENERATOR": "openai",
+            "LLM_API_KEY": "not-a-real-model-key",
+        },
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
