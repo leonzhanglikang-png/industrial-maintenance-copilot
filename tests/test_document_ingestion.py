@@ -1,14 +1,14 @@
 import pytest
-from backend.app.services.document_ingestion import (
-    MAX_UPLOAD_BYTES,
-    ingest_document,
-)
 
 from backend.app.infrastructure.embeddings import (
     DeterministicHashEmbeddingProvider,
 )
 from backend.app.infrastructure.vector_retriever import (
     InMemoryVectorRetriever,
+)
+from backend.app.services.document_ingestion import (
+    MAX_UPLOAD_BYTES,
+    ingest_document,
 )
 
 

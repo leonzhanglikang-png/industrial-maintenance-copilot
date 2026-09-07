@@ -24,8 +24,8 @@ jobs:
       - run: uv python install 3.13
       - run: uv sync --frozen --python 3.13
       - run: uv run --frozen python -m pytest
-      - run: uv run --frozen ruff check .
-      - run: uv run --frozen ruff format --check .
+      - run: uv run --frozen ruff check --no-cache .
+      - run: uv run --frozen ruff format --no-cache --check .
       - run: node --check frontend/static/app.js
       - run: git diff --check
       - name: 安装浏览器测试依赖
