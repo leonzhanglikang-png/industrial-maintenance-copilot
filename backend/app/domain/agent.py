@@ -56,6 +56,6 @@ class AgentRunResult(BaseModel):
     citations: list[AnswerCitation]
     tool_trace: list[ToolExecutionTrace]
     steps_executed: int = Field(ge=0)
-    stopped_reason: Literal["completed", "step_limit"]
+    stopped_reason: Literal["completed", "step_limit", "tool_failure"]
     generation_method: str
     safety_notice: str

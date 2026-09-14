@@ -73,3 +73,59 @@ test("mobile view supports insufficient-evidence answers without horizontal scro
   }));
   expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.width + 1);
 });
+
+for (const failedStep of [1, 2]) {
+  test(`tool failure at step ${failedStep} is shown as interrupted, not completed`, async ({ page }) => {
+    await connect(page);
+    await page.getByRole("button", { name: "出口压力偏低" }).click();
+    await page.locator("#equipment-id").fill("pump-001");
+    await page.locator("#run-button").click();
+    await expect(page.locator("#request-status")).toContainText("分析完成");
+    await expect(page.locator("#citations-section")).toBeVisible();
+
+    // Inject the failure response only in this browser test, never in the deployed app.
+    const endpoint = "**/api/v1/agent/runs";
+    await page.route(endpoint, async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.tool_trace = body.tool_trace.slice(0, failedStep);
+      const failed = body.tool_trace[failedStep - 1];
+      failed.status = "failed";
+      failed.output = {
+        error_code: failedStep === 1 ? "citation_validation_failed" : "tool_execution_failed",
+        message: "工具执行失败，本次分析已停止。",
+      };
+      body.stopped_reason = "tool_failure";
+      body.steps_executed = failedStep;
+      body.answer = failedStep === 1 ? "Analysis stopped." : `${body.answer.split("\n\n")[0]}\n\nAnalysis stopped.`;
+      if (failedStep === 1) {
+        body.citations = [];
+        body.generation_method = "failed";
+      }
+      await route.fulfill({ response, json: body });
+    });
+    await page.locator("#run-button").click();
+    await expect(page.locator("#request-status")).toContainText("分析中断");
+    await expect(page.locator("#request-status")).not.toContainText("分析完成");
+    await expect(page.locator("#result-notice")).toContainText("部分结果");
+    await expect(page.locator("#result-notice")).not.toContainText("没有找到足够");
+    await expect(page.locator("#tool-trace li")).toHaveCount(failedStep);
+    await expect(page.locator("#tool-trace .tool-failed")).toHaveCount(1);
+    await expect(page.locator(".tool-failed strong")).toContainText("执行失败");
+    await expect(page.locator(".tool-failed pre")).toBeVisible();
+    if (failedStep === 1) {
+      await expect(page.locator("#citations-section")).toBeHidden();
+      await expect(page.locator("#citations")).toBeEmpty();
+    } else {
+      await expect(page.locator("#citations")).toContainText("demo_pump_manual.md");
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `artifacts/workbench-failed-step-${failedStep}.png`, fullPage: true });
+
+    await page.unroute(endpoint);
+    await page.locator("#run-button").click();
+    await expect(page.locator("#request-status")).toContainText("分析完成");
+    await expect(page.locator("#tool-trace .tool-failed")).toHaveCount(0);
+    await expect(page.locator("#result-notice")).not.toContainText("分析中断");
+  });
+}

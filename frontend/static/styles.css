@@ -579,6 +579,15 @@ input::placeholder {
 .tool-trace strong {
   font-size: 0.875rem;
 }
+.tool-trace .tool-failed {
+  border-left-color: #d7a3a3;
+}
+.tool-trace .tool-failed:before {
+  background: #a52a30;
+}
+.tool-failed strong {
+  color: #a52a30;
+}
 .tool-trace pre,
 .raw-response pre {
   white-space: pre-wrap;

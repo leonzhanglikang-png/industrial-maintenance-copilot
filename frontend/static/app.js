@@ -85,9 +85,12 @@ function renderResult(body, mode, elapsed) {
   $("#result-meta").textContent = `耗时 ${(elapsed / 1000).toFixed(2)} 秒`;
   const citations = mode === "search" ? body.results : body.citations;
   const grounded = mode === "agent" ? body.tool_trace[0]?.output.grounded : body.grounded;
+  const failed = mode === "agent" && body.stopped_reason === "tool_failure";
   const notice = $("#result-notice");
-  notice.className = `result-notice${mode !== "search" && !grounded ? " warning" : ""}`;
-  if (mode === "search") {
+  notice.className = `result-notice${failed || (mode !== "search" && !grounded) ? " warning" : ""}`;
+  if (failed) {
+    notice.textContent = "分析中断：工具执行失败。下方仅保留已完成的部分结果，后续工具未执行。";
+  } else if (mode === "search") {
     notice.textContent = `找到 ${citations.length} 条候选原文，请核对相关性。`;
   } else if (!grounded) {
     notice.textContent = "没有找到足够的文档依据；请补充手册或调整问题。工具分析结果可另行查看。";
@@ -101,9 +104,11 @@ function renderResult(body, mode, elapsed) {
   const traces = body.tool_trace || [];
   $("#trace-section").hidden = traces.length === 0;
   $("#tool-trace").replaceChildren(...traces.map((trace) => {
-    const row = node("li");
-    row.append(node("strong", "", `${trace.step}. ${toolLabels[trace.tool_name] || trace.tool_name}`));
+    const failed = trace.status === "failed";
+    const row = node("li", failed ? "tool-failed" : "");
+    row.append(node("strong", "", `${trace.step}. ${toolLabels[trace.tool_name] || trace.tool_name} · ${failed ? "执行失败" : "已完成"}`));
     const detail = node("details");
+    detail.open = failed;
     detail.append(node("summary", "", "查看执行结果"));
     detail.append(node("pre", "", JSON.stringify(trace.output, null, 2)));
     row.append(detail);
@@ -179,7 +184,11 @@ $("#analysis-form").addEventListener("submit", async (event) => {
     const path = mode === "agent" ? "/agent/runs" : `/${mode}`;
     const body = await request(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
     renderResult(body, mode, performance.now() - started);
-    status("#request-status", "分析完成，请查看结果及来源。", "success");
+    if (body.stopped_reason === "tool_failure") {
+      status("#request-status", "分析中断，请查看失败步骤及已保留的部分结果。", "error");
+    } else {
+      status("#request-status", "分析完成，请查看结果及来源。", "success");
+    }
   } catch (error) {
     status("#request-status", error.message, "error");
     if (!$("#result-content").hidden) $("#result-meta").textContent = "上一次成功结果 · 本次请求未完成";

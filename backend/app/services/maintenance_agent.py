@@ -1,5 +1,10 @@
 from collections.abc import Sequence
 
+from backend.app.core.errors import (
+    CitationValidationError,
+    ModelConfigurationError,
+    ModelServiceError,
+)
 from backend.app.domain.agent import (
     AgentRunResult,
     FaultRecord,
@@ -64,64 +69,86 @@ class BoundedMaintenanceAgent:
         answer_sections: list[str] = []
         citations: list[AnswerCitation] = []
         generation_method = "not_run"
+        stopped_reason = "completed" if len(selected_tools) == len(planned_tools) else "step_limit"
 
         for step, tool_name in enumerate(selected_tools, start=1):
-            if tool_name == KNOWLEDGE_TOOL_NAME:
-                rag_result = self._rag_service.answer(
-                    normalized_query,
-                    evidence_limit=evidence_limit,
+            tool_input: dict[str, object] = {}
+            try:
+                if tool_name == KNOWLEDGE_TOOL_NAME:
+                    tool_input = {"query": normalized_query, "evidence_limit": evidence_limit}
+                    rag_result = self._rag_service.answer(
+                        normalized_query, evidence_limit=evidence_limit
+                    )
+                    section = rag_result.answer
+                    output = {
+                        "grounded": rag_result.grounded,
+                        "citation_count": len(rag_result.citations),
+                        "retrieved_evidence_count": rag_result.retrieved_evidence_count,
+                        "generation_method": rag_result.generation_method,
+                    }
+                elif tool_name == self._fault_history_tool.name:
+                    tool_input = {"equipment_id": normalized_equipment_id}
+                    records = self._fault_history_tool.lookup(normalized_equipment_id)
+                    section = _format_fault_history(records)
+                    output = {
+                        "record_count": len(records),
+                        "records": [record.model_dump(mode="json") for record in records],
+                    }
+                elif tool_name == self._sensor_analysis_tool.name:
+                    tool_input = {"reading_count": len(sensor_readings)}
+                    assessments = self._sensor_analysis_tool.analyze(list(sensor_readings))
+                    section = _format_sensor_assessments(assessments)
+                    output = {
+                        "assessments": [assessment.model_dump() for assessment in assessments]
+                    }
+
+                trace = ToolExecutionTrace(
+                    step=step,
+                    tool_name=tool_name,
+                    status="succeeded",
+                    input=tool_input,
+                    output=output,
                 )
-                answer_sections.append(rag_result.answer)
+            except Exception as exc:
+                # Stop at the tool boundary; never return provider bodies or retry implicitly.
+                if isinstance(exc, CitationValidationError):
+                    code, message = (
+                        "citation_validation_failed",
+                        "回答引用校验失败，本次分析已停止。",
+                    )
+                elif isinstance(exc, ModelConfigurationError):
+                    code, message = "model_configuration_error", "模型配置有误，本次分析已停止。"
+                elif isinstance(exc, ModelServiceError):
+                    code, message = (
+                        "model_service_unavailable",
+                        "模型服务暂时不可用，本次分析已停止。",
+                    )
+                else:
+                    code, message = "tool_execution_failed", "工具执行失败，本次分析已停止。"
+                traces.append(
+                    ToolExecutionTrace(
+                        step=step,
+                        tool_name=tool_name,
+                        status="failed",
+                        input=tool_input,
+                        output={"error_code": code, "message": message},
+                    )
+                )
+                answer_sections.append(
+                    "Analysis stopped because a tool failed. Any preceding results are partial; "
+                    "later tools were not run."
+                )
+                if tool_name == KNOWLEDGE_TOOL_NAME:
+                    generation_method = "failed"
+                stopped_reason = "tool_failure"
+                break
+
+            # Publish a step only after both execution and trace construction succeed.
+            traces.append(trace)
+            answer_sections.append(section)
+            if tool_name == KNOWLEDGE_TOOL_NAME:
                 citations = rag_result.citations
                 generation_method = rag_result.generation_method
-                traces.append(
-                    ToolExecutionTrace(
-                        step=step,
-                        tool_name=tool_name,
-                        status="succeeded",
-                        input={
-                            "query": normalized_query,
-                            "evidence_limit": evidence_limit,
-                        },
-                        output={
-                            "grounded": rag_result.grounded,
-                            "citation_count": len(rag_result.citations),
-                            "retrieved_evidence_count": (rag_result.retrieved_evidence_count),
-                            "generation_method": rag_result.generation_method,
-                        },
-                    )
-                )
-            elif tool_name == self._fault_history_tool.name:
-                records = self._fault_history_tool.lookup(normalized_equipment_id)
-                answer_sections.append(_format_fault_history(records))
-                traces.append(
-                    ToolExecutionTrace(
-                        step=step,
-                        tool_name=tool_name,
-                        status="succeeded",
-                        input={"equipment_id": normalized_equipment_id},
-                        output={
-                            "record_count": len(records),
-                            "records": [record.model_dump(mode="json") for record in records],
-                        },
-                    )
-                )
-            elif tool_name == self._sensor_analysis_tool.name:
-                assessments = self._sensor_analysis_tool.analyze(list(sensor_readings))
-                answer_sections.append(_format_sensor_assessments(assessments))
-                traces.append(
-                    ToolExecutionTrace(
-                        step=step,
-                        tool_name=tool_name,
-                        status="succeeded",
-                        input={"reading_count": len(sensor_readings)},
-                        output={
-                            "assessments": [assessment.model_dump() for assessment in assessments]
-                        },
-                    )
-                )
-
-        stopped_reason = "completed" if len(selected_tools) == len(planned_tools) else "step_limit"
 
         return AgentRunResult(
             query=normalized_query,
