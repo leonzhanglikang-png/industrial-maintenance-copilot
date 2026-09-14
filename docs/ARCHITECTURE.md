@@ -2,11 +2,44 @@
 
 这份说明回答三个问题：项目目前能做什么、每个文件负责什么、一次请求怎样经过这些文件。它与源码一起阅读，不需要再另写一份相同内容的学习记录。
 
-核对基准：2026-09-07，Day 15。引用修复提交 `6784a52`，工作台与持久化提交 `cc24f77`，最终验收代码提交 `43d9857`。[GitHub Actions 验收通过](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/34089041071)：**191 项 Python 测试、3 项 Chromium 浏览器测试、Ruff、容器构建、鉴权和重启持久化检查**。本地 Python 测试同样通过，保留一个已有弃用警告。计划和已知缺口在最后单独说明。
+核对基准：2026-09-14，Day 16，功能提交 `22ded71`。[本次 CI 验收通过](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/34840323927)：**201 项 Python 测试、5 项浏览器测试、Ruff、容器构建及重启持久化检查**。本地 Python 与代码检查同样通过，保留一个已有弃用警告。计划和已知缺口在最后单独说明。
+
+<a id="day16"></a>
+
+## 今天先读：Day 16，失败也是执行结果的一部分
+
+今天只解决一个问题：Agent 某一步失败后，不能丢掉此前已经完成的结果，也不能让页面继续显示“分析完成”。没有新增依赖、数据库表、重试框架或付费调用。
+
+例如“查手册成功 → 查历史失败 → 传感器未执行”：返回两条轨迹（成功、失败），保留手册答案和引用，`steps_executed=2`，`stopped_reason="tool_failure"`。失败的那次尝试也算一步，未执行的工具不伪造轨迹。
+
+| 场景 | Agent 响应 | 应当怎样理解 |
+| --- | --- | --- |
+| 工具正常执行，但手册没有足够证据 | HTTP 200，`completed`，知识工具 `succeeded`、`grounded=false` | 成功完成了一次检索/判断，不代表找到了依据 |
+| 所选工具正常执行，但计划被步数上限截断 | HTTP 200，`step_limit` | 还有工具没有执行，不应当当作完整分析 |
+| 已开始执行的工具抛出异常 | HTTP 200，`tool_failure`，最后一条轨迹 `failed` | 成功取回执行记录，不代表整个分析成功；保留的是部分结果 |
+| 创建 Agent 所需依赖时就配置失败 | HTTP 503，没有执行轨迹 | Agent 尚未开始运行；仍由原来的 API 错误处理返回请求编号 |
+
+普通 `/answers` 的引用错误 502、模型错误 503 规则没有改变。Agent 中失败的工具只返回固定的错误码和安全提示，不复制异常原文。第一个知识工具失败时，引用为空、`generation_method="failed"`；后续工具失败时，保留此前成功知识步骤的引用和生成方式。
+
+按约 3 小时 20 分钟完成今天的理解：
+
+1. **25 分钟：接口约定。** 对照上表和 `domain/agent.py`、`schemas/agent.py`。解释 HTTP 状态、`stopped_reason`、单步 `status`、`grounded` 为什么不是同一个概念。
+2. **50 分钟：核心代码。** 阅读 `services/maintenance_agent.py` 的 `run()`。用“第二步失败”跟踪 `traces`、`answer_sections`、`citations`；重点是 `try/except`、`break` 和成功后才提交单步结果的顺序。这里复用原来的三个调用分支，没有引入通用 Agent 执行框架。
+3. **45 分钟：测试证据。** 阅读 `tests/test_maintenance_agent.py` 新增的参数化测试，以及 `tests/test_agent_api.py` 的失败用例。运行下方命令。说明 `Mock.call_count` 如何证明失败后没有再执行或重试，而不是仅检查返回字符串。
+4. **40 分钟：页面状态。** 阅读 `frontend/static/app.js` 的 `renderResult()` 和提交事件，再看 `frontend/e2e/workbench.spec.js` 的两个失败场景。理解为什么第一步失败要清空旧引用，下一次成功又要清除失败标记。红色失败样式在 `frontend/static/styles.css`。
+5. **40 分钟：独立检查。** 不看答案，口头说明第一步、第二步、第三步分别失败时的轨迹长度、引用是否保留、后续工具是否执行；再解释“遇错停止”和“失败恢复”的区别。只需理解，不必另写重复笔记。
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run python -m pytest tests/test_maintenance_agent.py tests/test_agent_api.py -v
+```
+
+浏览器测试通过 [Playwright 的响应替换机制](https://playwright.dev/docs/mock) 注入可重复的失败记录；它验证页面展示，不冒充真实模型故障。真正的后端失败路径由 Python 测试注入工具异常及越界引用来验证。生产应用没有增加“故意报错”接口。GitHub Actions 的截图中，`workbench-failed-step-1.png`、`workbench-failed-step-2.png` 是这两个模拟场景。
+
+边界：这次实现的是**遇错停止并保留结果**，不是自动修复、续跑、跳过故障继续执行或自动重试。Agent 层每个工具最多尝试一次，不更改模型客户端自身的重试设置，也未新增总运行时间限制。对于请求在工具执行之前失败的情况，仍不能返回尚不存在的执行轨迹。
 
 <a id="day15"></a>
 
-## 今天先读：Day 15，从 API 到可操作的工作台
+## 上次内容：Day 15，从 API 到可操作的工作台
 
 今天完成了四类改动：正文与来源列表的引用编号修复；中文工作台；SQLite 文本块持久化；共享口令、限流、日志、Docker 与 CI。下面列出新增文件，原有文件的说明也已更新。
 
@@ -23,7 +56,7 @@
 | [frontend/package.json](../frontend/package.json) | 只声明浏览器测试所需的 Playwright 开发依赖 | 工作台运行不需要 npm 或前端编译 |
 | [frontend/package-lock.json](../frontend/package-lock.json) | 锁定浏览器测试依赖 | CI 用 `npm ci` 复现版本 |
 | [frontend/playwright.config.js](../frontend/playwright.config.js) | 定义 Chromium、测试目录、视口和超时 | `WORKBENCH_URL` 可覆盖测试服务地址 |
-| [frontend/e2e/workbench.spec.js](../frontend/e2e/workbench.spec.js) | 三个浏览器场景：三工具分析、上传搜索及安全文本显示、手机拒答布局 | 真实点击页面、核对 API 返回后呈现的内容，并保存截图 |
+| [frontend/e2e/workbench.spec.js](../frontend/e2e/workbench.spec.js) | 五个浏览器场景：三工具分析、上传搜索及安全文本显示、手机拒答布局，以及第一/第二步失败显示 | 前三项调用真实 API；后两项替换响应模拟失败，验证页面状态和引用清理，并保存截图 |
 | [tests/conftest.py](../tests/conftest.py) | 收集测试前隔离本机生产口令和模型凭证；每项测试使用临时数据库并清理缓存 | 模块级 `app` 会在 fixture 之前被导入，所以初始环境隔离必须提前 |
 | [tests/test_persistent_retriever.py](../tests/test_persistent_retriever.py) | 验证重建后可检索、跨实例刷新、事务回滚、并发去重、重建失败后的恢复 | “已经写入数据库”和“已经更新内存索引”是两个阶段 |
 | [tests/test_runtime_api.py](../tests/test_runtime_api.py) | 验证访问口令、生产配置、限流、安全错误和日志 | 错误正文不包含 provider body、输入问题或敏感配置 |
@@ -267,7 +300,7 @@ Pydantic 的职责是验证“数据符合哪些结构和约束”。例如缺�
 
 `SensorAssessment` 保存判断结果，状态准确拼写为 `below_range`、`normal`、`above_range`。`ToolExecutionTrace` 记录步骤号、工具名、状态、输入和输出。`AgentRunResult` 保存整次执行的回答、引用、轨迹、步数及停止原因。
 
-轨迹类型允许 `failed`，但当前执行代码只写入成功记录；异常捕获和失败轨迹还未实现，不能仅根据类型定义声称已有失败恢复。
+轨迹中的 `failed` 已在 Day 16 接入：工具抛错时写入安全错误码与提示，保留此前成功步骤并停止。运行结果新增 `stopped_reason="tool_failure"`；它表示失败终止，不等于自动恢复。
 
 ### `backend/app/ports/retrieval.py`：检索相关能力的约定
 
@@ -388,7 +421,7 @@ RRF 的 `add_chunks()` 把新块传给所有底层索引，返回各索引新增
 | `[S0]` 或超出候选数量的标记 | 抛出 `CitationValidationError`；API 返回安全的 502 提示 |
 | SDK 的 `APIError`，如客户端连接或服务状态错误 | 转为 `ModelServiceError`；API 返回 503，不暴露 provider body |
 
-越界引用仍然是拒绝并抛错，由 API 边界转成可显示的错误；没有自动切换摘录器。9 月 5 日发现的正文与列表编号错配已在 Day 15 修复，并补了模型适配器经过 RAG 服务的跨层测试。
+越界引用仍然是拒绝并抛错：直接问答由 API 边界转成 502，Agent 内部调用则转成失败轨迹；没有自动切换摘录器。9 月 5 日发现的正文与列表编号错配已在 Day 15 修复，并补了模型适配器经过 RAG 服务的跨层测试。
 
 ### `backend/app/services/rag_answering.py`：检索、生成、核对、返回
 
@@ -422,9 +455,9 @@ RRF 的 `add_chunks()` 把新块传给所有底层索引，返回各索引新增
 | 存在非空 `equipment_id` | `lookup_fault_history` |
 | 存在 `sensor_readings` | `analyze_sensor_ranges` |
 
-程序通过 `planned_tools[:max_steps]` 限制执行数量，并按知识、历史、传感器的顺序执行。实际选择的计划全部执行后，若仍有工具被步数限制截掉，则 `stopped_reason="step_limit"`；否则为 `completed`。
+程序通过 `planned_tools[:max_steps]` 限制执行数量，并按知识、历史、传感器的顺序执行。实际选择的计划全部执行后，若仍有工具被步数限制截掉，则 `stopped_reason="step_limit"`；否则为 `completed`。任何一步抛错则提前终止并返回 `tool_failure`，该原因优先于步数截断；失败的尝试也计入 `steps_executed`。
 
-每一步写入 `ToolExecutionTrace`。知识工具记录候选数、引用数、是否存在合法引用和生成方式；历史工具记录匹配条数和记录；传感器工具记录读数数量及判断结果。
+每个成功步骤写入 `ToolExecutionTrace` 后才发布其正文与引用。知识工具记录候选数、引用数、是否存在合法引用和生成方式；历史工具记录匹配条数和记录；传感器工具记录读数数量及判断结果。失败步骤只记录输入摘要、固定的 `error_code` 和 `message`，不返回异常原文，也不发布该步骤的未完成输出。
 
 最终答案是 RAG 正文、故障历史格式化文字、传感器格式化文字的拼接。当前没有把三个工具结果再交给模型做综合推理。返回的 `citations` 对应文档 RAG 部分；历史和传感器结果的来源在工具轨迹中，未被统一转换成 `[Sx]` 引用。
 
@@ -507,8 +540,8 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 | [tests/test_rag_answering.py](../tests/test_rag_answering.py) | 检索与生成参数传递、引用来源组装、拒绝未知 Chunk、无引用时 `grounded=false` |
 | [tests/test_answer_api.py](../tests/test_answer_api.py) | HTTP 回答带来源、不支持的问题拒答、上传文档支持后续回答、非法请求 |
 | [tests/test_maintenance_tools.py](../tests/test_maintenance_tools.py) | 历史记录筛选与时间排序、JSON 加载、非法输入、低于/处于/高于范围三类结果 |
-| [tests/test_maintenance_agent.py](../tests/test_maintenance_agent.py) | 工具名称和顺序、执行轨迹、步数截断、缺少可选输入时只运行知识工具、参数限制 |
-| [tests/test_agent_api.py](../tests/test_agent_api.py) | 一次 HTTP 请求运行三个只读工具、返回引用与提示；单步模式；无上下限读数返回 422 |
+| [tests/test_maintenance_agent.py](../tests/test_maintenance_agent.py) | 工具顺序、步数截断、参数限制；第 1/2/3 步失败时保留结果、阻止后续调用、不重复尝试，以及安全错误分类 |
+| [tests/test_agent_api.py](../tests/test_agent_api.py) | 三工具/单步请求、输入验证；历史工具失败保留引用、越界引用转失败轨迹、证据不足不是执行异常，以及运行前配置错误仍为 503 |
 | [tests/test_health.py](../tests/test_health.py) | 健康接口 HTTP 200 及完整返回元信息 |
 | [tests/test_info.py](../tests/test_info.py) | 项目信息接口 HTTP 200 及项目用途和提示 |
 
@@ -519,7 +552,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 | [tests/test_retrieval_evaluation.py](../tests/test_retrieval_evaluation.py) | Recall/MRR 的全部命中、部分命中、截断与未命中；汇总计算；用例读取；标注指向真实演示块 |
 | [tests/test_retrieval_evaluation_cli.py](../tests/test_retrieval_evaluation_cli.py) | 命令行能运行、输出合法 JSON、包含四组方案、正确的 K 和指标字段 |
 
-Day 15 执行 `python -m pytest`：191 项通过，保留一个已有的 Starlette/httpx 弃用警告。新增测试文件见顶部 Day 15 表格。通过已有断言不代表所有组合都已覆盖；先前的跨层引用编号缺口说明了为什么还需要集成测试。
+Day 16 执行 `python -m pytest`：201 项通过，保留一个已有的 Starlette/httpx 弃用警告。今天没有新增测试文件，而是在现有 Agent 单元/API 测试中新增 10 个用例。通过已有断言不代表所有组合都已覆盖；跨层引用和失败状态仍需要集成测试。
 
 <a id="support-files"></a>
 
@@ -634,13 +667,13 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 
 ## 15. 已知缺口与后续工作
 
-以下基于 Day 15 源码与本次验证结果，便于理解实现的真实范围。
+以下基于 Day 16 源码与本次验证结果，便于理解实现的真实范围。
 
 | 项目 | 当前状态与影响 |
 | --- | --- |
 | 模型正文引用编号 | Day 15 已修复；只引用 S2、先 S2 后 S1、重复引用均有跨层回归测试 |
 | 引用语义核验 | 当前检查候选身份和部分格式，尚未逐句验证证据是否真的支持结论；`grounded=true` 不能解释为答案保证正确 |
-| 错误处理 | 已有引用错误 502、模型配置/服务错误 503、通用错误 500 和请求 ID；Agent 仍不返回部分完成的失败轨迹，也没有自动重试恢复 |
+| 错误处理 | 直接问答保留 502/503；Agent 工具内部异常返回 HTTP 200 的 `tool_failure` 执行记录，保留部分结果。执行前的依赖错误仍走 5xx；没有自动重试、续跑或故障恢复 |
 | 状态持久化 | SQLite 保存文本块并驱动索引重建；事务回滚和跨实例读取已测。没有 PostgreSQL/Qdrant、跨主机同步、大规模增量索引或删除/版本清理功能 |
 | 文档处理 | 无 OCR、章节自动提取、表格专用解析及中文切块优化；PDF ID 依据文件名和拼接全文，没有编码全部分页结构 |
 | 真实模型验证 | 模型适配器的测试使用假客户端；尚不能把该测试结果当作线上模型质量、延迟或费用证据 |

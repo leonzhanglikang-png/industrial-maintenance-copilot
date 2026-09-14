@@ -21,6 +21,7 @@
 - 可显式启用的 OpenAI Responses 回答生成器，无引用或越界引用会被拒绝；
 - 只读的历史故障查询和传感器区间分析工具；
 - 最多执行三步、返回完整工具轨迹的确定性策略 Agent；
+- Agent 工具异常时立即停止，保留已完成步骤与引用，并在工作台显示失败步骤；
 - 中文演示工作台：上传、原文检索、引用问答和三工具综合分析；
 - SQLite 文本块持久化，重启后重建混合索引，并提供文档列表；
 - 模型正文与引用列表统一编号，模型故障和引用错误返回明确状态码；
@@ -31,14 +32,14 @@
 
 当前已经完成可本地演示的 RAG/Agent 应用。Milestone 2 的评测集扩充和真实质量提升、Milestone 5 的公开部署和最终求职材料仍未完成。CI 结果以仓库 Actions 中对应代码提交的实际运行记录为准。
 
-2026-09-07 验收：代码提交 `43d9857` 的 **191 项 Python 测试、3 项浏览器测试、Ruff、Docker 构建及重启持久化检查全部通过**，见[本次 CI 记录](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/34089041071)。
+2026-09-14 验收：代码提交 `22ded71` 的 **201 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查全部通过**，见[本次 CI 记录](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/34840323927)。其中两个浏览器场景替换响应模拟工具失败，用于验证页面；后端异常路径由 Python 测试验证。
 
 默认演示使用确定性哈希向量和证据摘录式回答生成器，目的是在不依赖外部模型的情况下验证完整 RAG/Agent 链路。设置 `ANSWER_GENERATOR=openai` 后可改用 Responses API，但没有密钥也能运行全部离线功能。哈希向量不能被等同于语义 Embedding；现有 6 条小型评测集上四种检索方案的 Recall/MRR 暂时相同，因此尚不能声称混合检索带来了质量提升。
 
 ## 计划实现
 
 1. 扩充检索评测集并接入真实语义 Embedding；
-2. 完成真实模型在线验收、Agent 失败恢复和工具结果综合推理；
+2. 完成真实模型在线验收、Agent 失败后的恢复策略和工具结果综合推理（已实现遇错停止及部分结果保留）；
 3. 完成公开 HTTPS 部署、负载与成本评测、求职材料；如需规模扩展，再迁移到 PostgreSQL/Qdrant。
 
 ## 本地运行
@@ -70,7 +71,9 @@ LLM_API_KEY=your-local-key
 LLM_MODEL=your-enabled-model
 ```
 
-模型 API Key 只放在服务端 `.env`，不要填入页面。页面的“访问口令”对应另一个配置 `API_ACCESS_TOKEN`；它只在当前页面内存中保存。默认摘录模式不调用付费模型。引用错误返回 502，模型服务错误返回 503，均包含可定位日志的请求编号。
+模型 API Key 只放在服务端 `.env`，不要填入页面。页面的“访问口令”对应另一个配置 `API_ACCESS_TOKEN`；它只在当前页面内存中保存。默认摘录模式不调用付费模型。直接调用 `/answers` 时，引用错误返回 502，模型服务错误返回 503，均包含可定位日志的请求编号。
+
+Agent 的 `/agent/runs` 有独立的执行结果约定：工具开始执行后失败，会返回 HTTP 200 的执行记录，`stopped_reason="tool_failure"`，最后一步为 `failed`；已完成的答案和引用保留，后续工具停止。HTTP 200 只表示拿到了记录，不表示分析成功。运行前的配置错误仍返回 503。当前不支持自动重试或断点续跑。
 
 ## 数据与访问控制
 
@@ -115,7 +118,7 @@ tests/          自动化测试
 
 进一步阅读：
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：中文功能总览、逐文件职责、请求调用链、测试说明；今天先读其中的 Day 15 阅读指导；
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：中文功能总览、逐文件职责、请求调用链、测试说明；今天先读其中的 Day 16 阅读指导；
 - [`docs/ROADMAP.md`](docs/ROADMAP.md)：功能里程碑和完成标准。
 
 ## 项目原则
