@@ -27,6 +27,7 @@ class RetrievalEvaluationCase:
 @dataclass(frozen=True)
 class RetrievalCaseResult:
     case_id: str
+    retrieved_chunk_ids: tuple[str, ...]
     recall_at_k: float
     reciprocal_rank: float
     latency_ms: float
@@ -144,12 +145,13 @@ def evaluate_retriever(
         )
         latency_ms = (perf_counter() - started_at) * 1000
 
-        retrieved_chunk_ids = [result.chunk.chunk_id for result in search_results]
+        retrieved_chunk_ids = [result.chunk.chunk_id for result in search_results[:k]]
         relevant_chunk_ids = set(case.relevant_chunk_ids)
 
         case_results.append(
             RetrievalCaseResult(
                 case_id=case.case_id,
+                retrieved_chunk_ids=tuple(retrieved_chunk_ids),
                 recall_at_k=recall_at_k(
                     retrieved_chunk_ids,
                     relevant_chunk_ids,

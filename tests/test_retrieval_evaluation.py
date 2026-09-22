@@ -188,6 +188,22 @@ def test_evaluate_retriever_aggregates_metrics() -> None:
     assert retriever.requested_limits == [2, 2]
 
 
+def test_evaluation_records_only_top_k_even_if_retriever_returns_too_many() -> None:
+    class OverReturningRetriever(StubRetriever):
+        def search(self, query: str, *, limit: int = 5) -> list[SearchResult]:
+            return super().search(query, limit=2)
+
+    report = evaluate_retriever(
+        OverReturningRetriever({"question": ["chunk-x", "chunk-a"]}),
+        [RetrievalEvaluationCase("case-1", "question", frozenset({"chunk-a"}))],
+        k=1,
+    )
+
+    assert report.mean_recall_at_k == 0.0
+    assert report.mean_reciprocal_rank == 0.0
+    assert report.cases[0].retrieved_chunk_ids == ("chunk-x",)
+
+
 def test_evaluate_retriever_requires_cases() -> None:
     retriever = StubRetriever({})
 
