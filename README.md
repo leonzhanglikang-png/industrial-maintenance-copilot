@@ -28,17 +28,18 @@
 - 可配置共享访问口令、进程内限流、请求编号和 JSON 请求日志；
 - 非 root Docker 镜像、持久卷，以及 GitHub CI 容器与浏览器测试；
 - 可复现的 Recall@K、MRR 和平均延迟离线评测；
+- 独立的 60 题合成检索基准、来源与标注校验、逐题命中和漏检诊断（尚待人工审核）；
 - Pytest 自动化测试和 Ruff 代码质量检查。
 
-当前已经完成可本地演示的 RAG/Agent 应用。Milestone 2 的评测集扩充和真实质量提升、Milestone 5 的公开部署和最终求职材料仍未完成。CI 结果以仓库 Actions 中对应代码提交的实际运行记录为准。
+当前已经完成可本地演示的 RAG/Agent 应用。Milestone 2 已有 60 题合成评测草案，但人工审核、独立测试集和真实质量提升仍未完成；Milestone 5 的公开部署和最终求职材料也仍未完成。CI 结果以对应代码提交的实际运行记录为准。
 
-2026-09-14 验收：代码提交 `22ded71` 的 **201 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查全部通过**，见[本次 CI 记录](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/34840323927)。其中两个浏览器场景替换响应模拟工具失败，用于验证页面；后端异常路径由 Python 测试验证。
+2026-09-22 验收：代码提交 `6af75fc` 的 **220 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查全部通过**，见[本次 CI 记录](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/35738509646)。其中两个浏览器场景替换响应模拟工具失败，用于验证页面；后端异常路径由 Python 测试验证。
 
-默认演示使用确定性哈希向量和证据摘录式回答生成器，目的是在不依赖外部模型的情况下验证完整 RAG/Agent 链路。设置 `ANSWER_GENERATOR=openai` 后可改用 Responses API，但没有密钥也能运行全部离线功能。哈希向量不能被等同于语义 Embedding；现有 6 条小型评测集上四种检索方案的 Recall/MRR 暂时相同，因此尚不能声称混合检索带来了质量提升。
+默认演示使用确定性哈希向量和证据摘录式回答生成器，目的是在不依赖外部模型的情况下验证完整 RAG/Agent 链路。设置 `ANSWER_GENERATOR=openai` 后可改用 Responses API，但没有密钥也能运行全部离线功能。哈希向量不能被等同于语义 Embedding；旧 6 题上四方案的 Recall/MRR 相同，新增 60 题未审核合成基准上 BM25 的 Recall@5 为 100%，当前混合重排为 96.67%，不能声称混合方案优于 BM25 或代表生产质量。
 
 ## 计划实现
 
-1. 扩充检索评测集并接入真实语义 Embedding；
+1. 人工审核检索标注、建立独立测试集并接入真实语义 Embedding；
 2. 完成真实模型在线验收、Agent 失败后的恢复策略和工具结果综合推理（已实现遇错停止及部分结果保留）；
 3. 完成公开 HTTPS 部署、负载与成本评测、求职材料；如需规模扩展，再迁移到 PostgreSQL/Qdrant。
 
@@ -100,11 +101,19 @@ docker compose logs -f
 
 浏览器测试用依赖放在 `frontend/package.json`，只有测试需要 Node/npm；工作台运行本身只有 HTML、CSS、JS 和现有 Python 服务，不需要前端构建步骤。
 
-运行四组检索基线评测：
+运行四组检索基线评测（旧 6 题演示集）：
 
 ```bash
 UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 ```
+
+运行新的独立基准（20 个候选文本块、60 道题）：
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dataset data/evaluation/maintenance_benchmark.json
+```
+
+添加 `--details` 可查看逐题相关块、返回块、漏检块与指标。输出包含数据来源、`review_status` 和 SHA-256 指纹。该基准由 AI 编写，当前为 `unreviewed`，不是人工标注或真实设备数据；预切块评测不包含文档解析、答案生成或在线负载。评测不会修改 SQLite 或在线知识库，具体结果与审核指导见架构说明顶部。
 
 ## 目录结构
 
@@ -118,7 +127,7 @@ tests/          自动化测试
 
 进一步阅读：
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：中文功能总览、逐文件职责、请求调用链、测试说明；今天先读其中的 Day 16 阅读指导；
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：中文功能总览、逐文件职责、请求调用链、测试说明；今天先读其中的 Day 17 阅读指导；
 - [`docs/ROADMAP.md`](docs/ROADMAP.md)：功能里程碑和完成标准。
 
 ## 项目原则

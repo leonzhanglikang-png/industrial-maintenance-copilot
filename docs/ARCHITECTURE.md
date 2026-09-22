@@ -2,40 +2,52 @@
 
 这份说明回答三个问题：项目目前能做什么、每个文件负责什么、一次请求怎样经过这些文件。它与源码一起阅读，不需要再另写一份相同内容的学习记录。
 
-核对基准：2026-09-14，Day 16，功能提交 `22ded71`。[本次 CI 验收通过](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/34840323927)：**201 项 Python 测试、5 项浏览器测试、Ruff、容器构建及重启持久化检查**。本地 Python 与代码检查同样通过，保留一个已有弃用警告。计划和已知缺口在最后单独说明。
+核对基准：2026-09-22，Day 17。数据提交 `6c17fa1`，评测代码提交 `6af75fc`。[本次 CI 验收通过](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/35738509646)：**220 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查**。本地 Python 与代码检查同样通过，保留一个已有弃用警告。计划和已知缺口在最后单独说明。
 
-<a id="day16"></a>
+<a id="day17"></a>
 
-## 今天先读：Day 16，失败也是执行结果的一部分
+## 今天先读：Day 17，用逐题证据检查检索质量
 
-今天只解决一个问题：Agent 某一步失败后，不能丢掉此前已经完成的结果，也不能让页面继续显示“分析完成”。没有新增依赖、数据库表、重试框架或付费调用。
+今天没有改搜索算法，而是增加了独立的评测语料、标注验证和逐题命中记录。旧的 6 题仍可运行，新基准需要显式指定。它不读取或写入 SQLite，也不会把测试文本加入工作台知识库。
 
-例如“查手册成功 → 查历史失败 → 传感器未执行”：返回两条轨迹（成功、失败），保留手册答案和引用，`steps_executed=2`，`stopped_reason="tool_failure"`。失败的那次尝试也算一步，未执行的工具不伪造轨迹。
+新增数据：20 个已经切好的合成文本块，60 道题，包括 20 道关键词题、20 道改写题、10 道双证据题、10 道相似故障区分题。文本、问题和答案标注全部由 AI 编写，`review_status="unreviewed"`。不是企业工单、厂家手册、人工标注集或独立保留测试集，更不是设备操作规程。
 
-| 场景 | Agent 响应 | 应当怎样理解 |
-| --- | --- | --- |
-| 工具正常执行，但手册没有足够证据 | HTTP 200，`completed`，知识工具 `succeeded`、`grounded=false` | 成功完成了一次检索/判断，不代表找到了依据 |
-| 所选工具正常执行，但计划被步数上限截断 | HTTP 200，`step_limit` | 还有工具没有执行，不应当当作完整分析 |
-| 已开始执行的工具抛出异常 | HTTP 200，`tool_failure`，最后一条轨迹 `failed` | 成功取回执行记录，不代表整个分析成功；保留的是部分结果 |
-| 创建 Agent 所需依赖时就配置失败 | HTTP 503，没有执行轨迹 | Agent 尚未开始运行；仍由原来的 API 错误处理返回请求编号 |
+### 这次实测结果
 
-普通 `/answers` 的引用错误 502、模型错误 503 规则没有改变。Agent 中失败的工具只返回固定的错误码和安全提示，不复制异常原文。第一个知识工具失败时，引用为空、`generation_method="failed"`；后续工具失败时，保留此前成功知识步骤的引用和生成方式。
+数据先固定在提交 `6c17fa1`，再运行四种方案；没有根据结果修改标签或调参。数据文件 SHA-256：
 
-按约 3 小时 20 分钟完成今天的理解：
+`e370d8a358c84b41d6860311b9186bd5a652d3c4761413ba5d4c7587a676c196`
 
-1. **25 分钟：接口约定。** 对照上表和 `domain/agent.py`、`schemas/agent.py`。解释 HTTP 状态、`stopped_reason`、单步 `status`、`grounded` 为什么不是同一个概念。
-2. **50 分钟：核心代码。** 阅读 `services/maintenance_agent.py` 的 `run()`。用“第二步失败”跟踪 `traces`、`answer_sections`、`citations`；重点是 `try/except`、`break` 和成功后才提交单步结果的顺序。这里复用原来的三个调用分支，没有引入通用 Agent 执行框架。
-3. **45 分钟：测试证据。** 阅读 `tests/test_maintenance_agent.py` 新增的参数化测试，以及 `tests/test_agent_api.py` 的失败用例。运行下方命令。说明 `Mock.call_count` 如何证明失败后没有再执行或重试，而不是仅检查返回字符串。
-4. **40 分钟：页面状态。** 阅读 `frontend/static/app.js` 的 `renderResult()` 和提交事件，再看 `frontend/e2e/workbench.spec.js` 的两个失败场景。理解为什么第一步失败要清空旧引用，下一次成功又要清除失败标记。红色失败样式在 `frontend/static/styles.css`。
-5. **40 分钟：独立检查。** 不看答案，口头说明第一步、第二步、第三步分别失败时的轨迹长度、引用是否保留、后续工具是否执行；再解释“遇错停止”和“失败恢复”的区别。只需理解，不必另写重复笔记。
+| 方案 | Recall@1 | Recall@5 | MRR@5 |
+| --- | ---: | ---: | ---: |
+| 哈希向量 | 46.67% | 77.50% | 0.6478 |
+| BM25 | 70.00% | 100.00% | 0.8750 |
+| RRF 混合 | 55.00% | 90.83% | 0.7547 |
+| RRF＋词覆盖重排 | 69.17% | 96.67% | 0.8556 |
+
+这是这批未审核合成数据上的结果，不代表真实用户表现。BM25 的 Recall@5 达到 100% 也不意味着首位排序完美，更不意味着答案正确。存在双证据题，所以 Recall@1 与 MRR@1 可以不同：只找到两条标准证据中的一条且排第一时，Recall@1=0.5、倒数排名=1。
+
+当前混合方案没有超过 BM25，因此不宣称“架构更复杂就更准确”。今天不据此修改线上默认检索器；下一步应先审核标签，再比较真实语义 Embedding。后续调参仍不能把这批开发集当成独立测试集。
+
+### 怎么运行和查看
 
 ```bash
-UV_CACHE_DIR=.uv-cache uv run python -m pytest tests/test_maintenance_agent.py tests/test_agent_api.py -v
+UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dataset data/evaluation/maintenance_benchmark.json
 ```
 
-浏览器测试通过 [Playwright 的响应替换机制](https://playwright.dev/docs/mock) 注入可重复的失败记录；它验证页面展示，不冒充真实模型故障。真正的后端失败路径由 Python 测试注入工具异常及越界引用来验证。生产应用没有增加“故意报错”接口。GitHub Actions 的截图中，`workbench-failed-step-1.png`、`workbench-failed-step-2.png` 是这两个模拟场景。
+增加 `--details` 可查看每题的 `relevant_chunk_ids`、`retrieved_chunk_ids`、`missing_chunk_ids`、Recall 与倒数排名。无参数运行仍是旧的 6 题。报告会带语料来源、审核状态和文件指纹；平均延迟只计检索调用，不包含导入、建索引、HTTP 或模型生成。
 
-边界：这次实现的是**遇错停止并保留结果**，不是自动修复、续跑、跳过故障继续执行或自动重试。Agent 层每个工具最多尝试一次，不更改模型客户端自身的重试设置，也未新增总运行时间限制。对于请求在工具执行之前失败的情况，仍不能返回尚不存在的执行轨迹。
+一个实际漏检例子：`paraphrase-03` 描述“泵仍正常输液，但轴支撑处越来越热”。标注为 `pump-bearing`，但当前混合重排 Top 5 返回的是 `conveyor-tracking, pump-seal, motor-bearing, conveyor-jam, sensor-drift`，因此 Recall@5 与倒数排名均为 0。先核对原文能否支持标注，再讨论哈希碰撞、候选融合或词覆盖重排的影响，不能只凭这个例子断言唯一原因。
+
+### 今天的阅读顺序（约 3.5 小时）
+
+1. **25 分钟：数据与验证。** 阅读 [基准 JSON](../data/evaluation/maintenance_benchmark.json) 的头部和前两个文本块，再看 [加载器](../backend/app/services/retrieval_benchmark.py)。它校验重复 ID、归一化后的重复问题、空语料和不存在的相关块，但不能判断标注的语义正确性。
+2. **35 分钟：指标。** 阅读 [评测服务](../backend/app/services/retrieval_evaluation.py) 和对应测试。用标准证据 `{A, B}`、返回 `[C, A, D]` 手算 Recall@3、倒数排名；重点看新增回归测试：检索器超量返回时，两种指标都只能使用前 K 条。
+3. **40 分钟：真实输出。** 阅读 [CLI](../backend/app/cli/evaluate_retrieval.py)，运行上面的命令及 `--details`。找到 `paraphrase-03` 和 `paraphrase-19`，对比 BM25 与混合重排结果。汇总分数和逐题记录来自同一次检索，不为生成诊断重复搜索。
+4. **90 分钟：人工审核练习。** 先看题和候选原文，不看算法排名。单证据题检查目标块是否直接支持问题、其他块是否同样相关；双证据题检查是否确实需要两条。模糊、漏标或不自然的题，记下 `case_id` 和理由发给我即可，不用再建笔记文件。抽查不等于完成全部人工审核，当前保持 `unreviewed`。
+5. **20 分钟：口头复述。** 解释“220 个测试通过”为什么不等于检索质量好；为什么不能把 60 道 AI 题写成 60 道人工标注；为什么 BM25 的这个结果不能直接证明它在所有场景最好。
+
+今天新增的三个文件是基准 JSON、`services/retrieval_benchmark.py` 和 `tests/test_retrieval_benchmark.py`；其余只扩展原来的评测服务、CLI 和测试。没有新增运行依赖或付费调用。Day 16 的阅读指导可在 Git 提交 `10d4952` 的本文件历史中查看，失败处理的当前说明仍在第 10 节。
 
 <a id="day15"></a>
 
@@ -118,7 +130,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m pytest tests/test_maintenance_agent.py t
 | 故障历史工具 | 按设备编号查询演示记录，较新的记录优先 | 数据来自只读 JSON，没有生产数据库连接 |
 | 传感器工具 | 判断单次读数是否低于、处于或高于指定范围 | 阈值由请求提供；没有实时采集、趋势分析或故障预测 |
 | Agent | 根据请求字段选择工具，最多执行三步，返回执行轨迹 | 固定策略与顺序；模型不参与工具选择；没有设备控制能力 |
-| 检索评测 | 对四种检索方案输出 Recall@K、MRR 和延迟 | 仅 6 个问题；不测模型答案质量，不代表生产性能 |
+| 检索评测 | 原 6 题演示集＋独立 60 题合成基准；四方案指标、逐题命中和遗漏记录 | 60 题尚未经人工审核；只测检索，不测答案质量或生产性能 |
 
 <a id="layers"></a>
 
@@ -473,29 +485,34 @@ RRF 的 `add_chunks()` 把新块传给所有底层索引，返回各索引新增
 
 `recall_at_k()` 计算“前 K 个命中中找到了多少正确块 / 所有正确块数”。`reciprocal_rank()` 找到第一个正确块的排名，返回其倒数；没有命中时为 0。`evaluate_retriever()` 对每题执行 `search(limit=k)`，记录耗时，再计算平均 Recall、平均倒数排名和平均延迟。
 
-例如正确块集合是 `{A, B}`，前三名是 `[C, A, D]`，Recall@3 为 `1/2`，倒数排名为 `1/2`。因为本评测只向检索器请求前 K 个，报告中的 MRR 也受 K 截断；它不是无限长结果列表上的 MRR。
+例如正确块集合是 `{A, B}`，前三名是 `[C, A, D]`，Recall@3 为 `1/2`，倒数排名为 `1/2`。评测不仅请求前 K 个，也显式截断超量返回结果，保证 Recall 与 MRR 使用相同前 K 条。报告中的 MRR 是 MRR@K，不是无限长结果列表上的 MRR。单题结果保留这次实际使用的 `retrieved_chunk_ids`。
 
 计时只围绕 `retriever.search()`，不包括导入、建索引、HTTP 请求或回答生成。这个平均值不是接口端到端延迟，也不是负载测试的 P95。
 
 ### `backend/app/cli/evaluate_retrieval.py`：终端评测入口
 
-[打开源码](../backend/app/cli/evaluate_retrieval.py)。`build_evaluation_summary()` 使用同一份演示 Chunk 和同一套问题构建四组方案：哈希向量、BM25、RRF、RRF 加覆盖率重排。每组运行 K=1、3、5，`main()` 将汇总结果打印为 JSON。
+[打开源码](../backend/app/cli/evaluate_retrieval.py)。`build_evaluation_summary()` 使用同一份 Chunk 和问题构建四组方案：哈希向量、BM25、RRF、RRF 加覆盖率重排。无参数选择旧演示集，`--dataset` 选择独立基准。每组运行 K=1、3、5，`--details` 增加逐题命中与漏检记录；`main()` 输出 JSON，输入文件错误以退出码 2 报告。
 
-这个脚本重新构建独立索引，不连接已经运行的 Web 服务，也不评测你在另一服务进程中上传的临时文档。
+这个脚本重新构建独立索引，不连接 Web 服务、不修改 SQLite，也不评测在线知识库。独立基准使用预先切好的文本块，因此不包含 PDF 解析与切块质量；不应称为端到端 RAG 评测。
 
 ```bash
 UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 ```
 
-### 三个实际数据文件
+### `backend/app/services/retrieval_benchmark.py`：独立基准加载与标注校验
+
+[打开源码](../backend/app/services/retrieval_benchmark.py)。`RetrievalBenchmark` 将来源元数据、候选 Chunk 与问题放在同一份文件中，拒绝重复块 ID、重复题 ID、忽略大小写及空白后重复的问题，以及指向不存在文本块的标注。结构校验通过不等于人工确认相关性。
+
+### 四个实际数据文件
 
 | 文件 | 内容与用途 | 注意事项 |
 | --- | --- | --- |
 | [data/raw/demo_pump_manual.md](../data/raw/demo_pump_manual.md) | 泵低出口压力、高轴承温度、机械密封泄漏等示例文字；用于默认索引和测试 | 项目演示材料，不是某型号设备的经过核验的正式维护规程 |
 | [data/evaluation/retrieval_cases.json](../data/evaluation/retrieval_cases.json) | 6 条问题及对应的 `relevant_chunk_ids` | 修改演示内容、文件名或切块策略后，要重新检查标注是否仍对应正确块 |
+| [data/evaluation/maintenance_benchmark.json](../data/evaluation/maintenance_benchmark.json) | 20 个候选文本块、60 道题及来源/审核元数据 | AI 编写、未人工审核、仅作开发用合成基准；不加载到在线知识库 |
 | [data/demo/fault_history.json](../data/demo/fault_history.json) | 3 条示例故障：2 条 `pump-001`，1 条 `compressor-001` | 是工具演示数据，没有连接真实设备或企业记录 |
 
-现有小型评测上四种方案的 Recall/MRR 相同，不能据此声称混合检索已经提高准确率。质量提升需要扩充固定评测集，并重新比较。
+旧 6 题上四方案的 Recall/MRR 相同。新增 60 题未审核基准上，BM25 的 Recall@5 为 1.0，当前混合重排为 0.9667；不能声称混合检索优于 BM25，更不能据合成开发集推断生产质量。
 
 <a id="tests"></a>
 
@@ -550,9 +567,10 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 | 文件 | 主要验证内容 |
 | --- | --- |
 | [tests/test_retrieval_evaluation.py](../tests/test_retrieval_evaluation.py) | Recall/MRR 的全部命中、部分命中、截断与未命中；汇总计算；用例读取；标注指向真实演示块 |
-| [tests/test_retrieval_evaluation_cli.py](../tests/test_retrieval_evaluation_cli.py) | 命令行能运行、输出合法 JSON、包含四组方案、正确的 K 和指标字段 |
+| [tests/test_retrieval_benchmark.py](../tests/test_retrieval_benchmark.py) | 来源与标签读取；重复 ID/问题、无效引用、空数据、损坏或缺失文件；合成基准规模及未审核状态 |
+| [tests/test_retrieval_evaluation_cli.py](../tests/test_retrieval_evaluation_cli.py) | 默认 6 题兼容、60 题模块命令、数据指纹、逐题与汇总一致、输入错误码、不触碰持久化知识库 |
 
-Day 16 执行 `python -m pytest`：201 项通过，保留一个已有的 Starlette/httpx 弃用警告。今天没有新增测试文件，而是在现有 Agent 单元/API 测试中新增 10 个用例。通过已有断言不代表所有组合都已覆盖；跨层引用和失败状态仍需要集成测试。
+Day 17 执行 `python -m pytest`：220 项通过，保留一个已有的 Starlette/httpx 弃用警告。今天新增 19 项基准和评测测试；测试通过约束程序行为，不代表人工标注已经审核或检索质量已经达标。
 
 <a id="support-files"></a>
 
@@ -667,7 +685,7 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 
 ## 15. 已知缺口与后续工作
 
-以下基于 Day 16 源码与本次验证结果，便于理解实现的真实范围。
+以下基于 Day 17 源码与本次验证结果，便于理解实现的真实范围。
 
 | 项目 | 当前状态与影响 |
 | --- | --- |
@@ -677,7 +695,7 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 | 状态持久化 | SQLite 保存文本块并驱动索引重建；事务回滚和跨实例读取已测。没有 PostgreSQL/Qdrant、跨主机同步、大规模增量索引或删除/版本清理功能 |
 | 文档处理 | 无 OCR、章节自动提取、表格专用解析及中文切块优化；PDF ID 依据文件名和拼接全文，没有编码全部分页结构 |
 | 真实模型验证 | 模型适配器的测试使用假客户端；尚不能把该测试结果当作线上模型质量、延迟或费用证据 |
-| 检索质量 | 真实语义 Embedding 尚未接入；当前 6 题远少于路线图要求的至少 50 题，尚无质量提升结论 |
+| 检索质量 | 真实语义 Embedding 尚未接入；已有 60 题 AI 合成标注草案，但不等于至少 50 题人工标注已完成；混合重排在该草案上仍未超过 BM25，独立测试集与真实质量提升未完成 |
 | Agent 深度 | 固定策略和结果拼接已实现；没有模型自主规划、多个工具结果的模型综合推理、自动重试或故障恢复 |
 | 产品与部署 | 已有中文工作台、共享口令、进程内限流、请求日志、Docker/Compose 和 CI；多用户账号、分布式限流、公开 HTTPS 部署、负载与成本评测仍未完成 |
 
