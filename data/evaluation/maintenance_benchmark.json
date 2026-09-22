@@ -1,0 +1,600 @@
+{
+  "dataset_id": "maintenance-synthetic-v1",
+  "description": "Retrieval-only development fixture: 20 pre-segmented passages and 60 questions. Not real manuals, a held-out test set, or operating instructions.",
+  "provenance": "AI-authored synthetic passages, questions, and relevance labels; no real equipment incidents or manufacturer claims.",
+  "review_status": "unreviewed",
+  "chunks": [
+    {
+      "chunk_id": "pump-pressure",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A centrifugal pump record links low discharge pressure to a blocked suction strainer, a partly closed inlet valve, or inadequate inlet pressure. The investigation compares suction pressure and delivered flow with the pump baseline. This entry concerns poor hydraulic output, not seal leakage or bearing heat.",
+      "chunk_index": 0,
+      "source": "maintenance_benchmark.json",
+      "section": "Pump discharge pressure"
+    },
+    {
+      "chunk_id": "pump-cavitation",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "The cavitation entry describes gravel-like rattling, fluctuating flow, and pitting near a centrifugal pump impeller. Vapor bubbles can form when inlet conditions are inadequate and collapse inside the pump. Suction conditions distinguish this hydraulic noise from the repetitive sound of a damaged rolling bearing.",
+      "chunk_index": 1,
+      "source": "maintenance_benchmark.json",
+      "section": "Pump cavitation"
+    },
+    {
+      "chunk_id": "pump-bearing",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A pump bearing-temperature trend rises while delivered flow stays stable. The maintenance record considers lubrication condition and shaft alignment. Housing temperature and vibration are compared with prior readings. This entry does not supply an operating temperature limit; limits must come from the equipment's approved documentation.",
+      "chunk_index": 2,
+      "source": "maintenance_benchmark.json",
+      "section": "Pump bearing heat"
+    },
+    {
+      "chunk_id": "pump-seal",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A wet trace around the pump shaft and liquid escaping near the seal housing point to the mechanical seal assembly. The record distinguishes shaft-seal leakage from a pipe flange leak. Inspection findings include seal-face condition and alignment; the entry is not a procedure for working on a running pump.",
+      "chunk_index": 3,
+      "source": "maintenance_benchmark.json",
+      "section": "Pump mechanical seal leakage"
+    },
+    {
+      "chunk_id": "compressor-oil",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A rotary screw compressor has a low lubricating-oil pressure alarm despite normal delivery air pressure. The record compares oil level, lubricant pressure readings, and oil-filter condition. Lubrication pressure is a different circuit from the compressed-air outlet. Bypassing the alarm is not an acceptable diagnostic action.",
+      "chunk_index": 4,
+      "source": "maintenance_benchmark.json",
+      "section": "Compressor lubrication pressure"
+    },
+    {
+      "chunk_id": "compressor-heat",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A compressor discharge-air temperature trend increases when the cooler surface is fouled or cooling airflow is restricted. The record includes ambient temperature and fan observations. This thermal entry is separate from a low oil-pressure alarm and does not define a universal shutdown temperature.",
+      "chunk_index": 5,
+      "source": "maintenance_benchmark.json",
+      "section": "Compressor discharge temperature"
+    },
+    {
+      "chunk_id": "compressor-cycling",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "Repeated short load-unload cycles are recorded on an air compressor when demand changes rapidly, a receiver is undersized, or the pressure-control band is unsuitable. The useful evidence is a timestamped pressure trace with loading states. This problem concerns cycling frequency rather than discharge-air temperature.",
+      "chunk_index": 6,
+      "source": "maintenance_benchmark.json",
+      "section": "Compressor short cycling"
+    },
+    {
+      "chunk_id": "compressor-water",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "Water collected downstream of an air compressor is associated with condensate-drain or dryer performance. The record reviews drain observations, dew point, and dryer status. It distinguishes liquid water carryover from compressor lubricant pressure problems; the presence of water alone does not identify which component failed.",
+      "chunk_index": 7,
+      "source": "maintenance_benchmark.json",
+      "section": "Compressed air condensate"
+    },
+    {
+      "chunk_id": "motor-overload",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A motor overload trip coincides with sustained high current on all phases while driving a heavily loaded conveyor. Current history and mechanical load observations help distinguish excess demand from a supply imbalance. A trip label alone is not proof that the overload setting should be changed.",
+      "chunk_index": 8,
+      "source": "maintenance_benchmark.json",
+      "section": "Motor electrical overload"
+    },
+    {
+      "chunk_id": "motor-imbalance",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "Unequal phase currents accompanied by unequal line voltages suggest a motor supply imbalance or connection issue. The diagnostic record compares all three phases rather than only the largest current value. This differs from roughly balanced high currents caused by excessive mechanical load.",
+      "chunk_index": 9,
+      "source": "maintenance_benchmark.json",
+      "section": "Motor phase imbalance"
+    },
+    {
+      "chunk_id": "motor-bearing",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A repeating rumble localised at a motor bearing is correlated with vibration and lubrication history. The record contrasts this rotating mechanical noise with a pump's gravel-like hydraulic noise. Supply-voltage measurements belong to a different diagnostic branch and do not directly confirm bearing damage.",
+      "chunk_index": 10,
+      "source": "maintenance_benchmark.json",
+      "section": "Motor rolling bearing noise"
+    },
+    {
+      "chunk_id": "motor-insulation",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A motor's insulation-resistance history changes after moisture exposure or storage in a damp environment. Qualified electrical assessment considers temperature, contamination, and earlier insulation measurements. This entry concerns winding insulation condition, not phase-current balance, and gives no procedure for testing energised equipment.",
+      "chunk_index": 11,
+      "source": "maintenance_benchmark.json",
+      "section": "Motor insulation deterioration"
+    },
+    {
+      "chunk_id": "conveyor-tracking",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A conveyor belt migrates sideways and rubs one edge. The record links mistracking to pulley or idler alignment and uneven loading across the belt. Lateral position is the key observation. Tracking is different from a belt that stays centred but moves too slowly relative to its drive pulley.",
+      "chunk_index": 12,
+      "source": "maintenance_benchmark.json",
+      "section": "Conveyor belt tracking"
+    },
+    {
+      "chunk_id": "conveyor-slip",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "The drive pulley rotates while the conveyor belt lags or stops intermittently, indicating relative slip. The record considers belt tension and contamination at the drive contact surface. Comparing pulley rotation with belt travel separates loss of traction from sideways belt tracking.",
+      "chunk_index": 13,
+      "source": "maintenance_benchmark.json",
+      "section": "Conveyor belt slip"
+    },
+    {
+      "chunk_id": "conveyor-jam",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "Material accumulates at a conveyor transfer chute and belt movement becomes obstructed. The record pairs blockage observations with drive-current history. This differs from a false photoeye indication when the transfer path is actually clear. Any physical inspection remains subject to the site's approved isolation procedure.",
+      "chunk_index": 14,
+      "source": "maintenance_benchmark.json",
+      "section": "Conveyor material jam"
+    },
+    {
+      "chunk_id": "conveyor-photoeye",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A conveyor photoelectric sensor reports an occupied path even when no item is present. The record considers a dirty lens, misalignment, and reflector condition. Comparing the indicated state with a clear physical path helps distinguish a false presence signal from an actual accumulation at the transfer chute.",
+      "chunk_index": 15,
+      "source": "maintenance_benchmark.json",
+      "section": "Conveyor photoeye false indication"
+    },
+    {
+      "chunk_id": "valve-stiction",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A control valve remains stationary through small command changes and then jumps suddenly. The record calls this stick-slip behaviour and relates it to stem friction or packing condition. A stepped command-versus-motion trace is more informative here than a single final position reading.",
+      "chunk_index": 16,
+      "source": "maintenance_benchmark.json",
+      "section": "Control valve stiction"
+    },
+    {
+      "chunk_id": "valve-feedback",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A valve's position transmitter disagrees with an independently observed stem position even when the stem moves smoothly. The record concerns feedback calibration or linkage, not abrupt stick-slip motion. Comparing the command, actual movement, and reported position separates sensing error from mechanical friction.",
+      "chunk_index": 17,
+      "source": "maintenance_benchmark.json",
+      "section": "Valve position feedback mismatch"
+    },
+    {
+      "chunk_id": "filter-differential",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A process filter shows increasing differential pressure at comparable flow as its element loads with retained material. Comparing pressures upstream and downstream distinguishes filter restriction from a change in pump inlet pressure. The record contains no universal replacement threshold for every filter design.",
+      "chunk_index": 18,
+      "source": "maintenance_benchmark.json",
+      "section": "Process filter differential pressure"
+    },
+    {
+      "chunk_id": "sensor-drift",
+      "document_id": "synthetic-maintenance-v1",
+      "text": "A pressure transmitter gradually diverges from a calibrated reference while the process appears stable. The record investigates zero shift and calibration history. It separates an instrument offset from a genuine pressure change confirmed by independent measurements. A single disagreeing reading is not sufficient proof of drift.",
+      "chunk_index": 19,
+      "source": "maintenance_benchmark.json",
+      "section": "Pressure transmitter drift"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "exact-01",
+      "query": "What checks are described for low centrifugal pump discharge pressure?",
+      "relevant_chunk_ids": [
+        "pump-pressure"
+      ]
+    },
+    {
+      "case_id": "exact-02",
+      "query": "What observations identify pump cavitation near the impeller?",
+      "relevant_chunk_ids": [
+        "pump-cavitation"
+      ]
+    },
+    {
+      "case_id": "exact-03",
+      "query": "What evidence is used for rising pump bearing temperature?",
+      "relevant_chunk_ids": [
+        "pump-bearing"
+      ]
+    },
+    {
+      "case_id": "exact-04",
+      "query": "Which assembly is associated with liquid escaping around the pump shaft?",
+      "relevant_chunk_ids": [
+        "pump-seal"
+      ]
+    },
+    {
+      "case_id": "exact-05",
+      "query": "What is reviewed for a screw compressor low lubricating-oil pressure alarm?",
+      "relevant_chunk_ids": [
+        "compressor-oil"
+      ]
+    },
+    {
+      "case_id": "exact-06",
+      "query": "What can accompany increasing compressor discharge-air temperature?",
+      "relevant_chunk_ids": [
+        "compressor-heat"
+      ]
+    },
+    {
+      "case_id": "exact-07",
+      "query": "What evidence helps investigate compressor short load-unload cycles?",
+      "relevant_chunk_ids": [
+        "compressor-cycling"
+      ]
+    },
+    {
+      "case_id": "exact-08",
+      "query": "What records help investigate water downstream of a compressed-air system?",
+      "relevant_chunk_ids": [
+        "compressor-water"
+      ]
+    },
+    {
+      "case_id": "exact-09",
+      "query": "What does high balanced current with a motor overload trip suggest?",
+      "relevant_chunk_ids": [
+        "motor-overload"
+      ]
+    },
+    {
+      "case_id": "exact-10",
+      "query": "What is compared when motor phase currents and line voltages are unequal?",
+      "relevant_chunk_ids": [
+        "motor-imbalance"
+      ]
+    },
+    {
+      "case_id": "exact-11",
+      "query": "What records help investigate a rumbling motor rolling bearing?",
+      "relevant_chunk_ids": [
+        "motor-bearing"
+      ]
+    },
+    {
+      "case_id": "exact-12",
+      "query": "What history is relevant to motor insulation resistance after moisture exposure?",
+      "relevant_chunk_ids": [
+        "motor-insulation"
+      ]
+    },
+    {
+      "case_id": "exact-13",
+      "query": "What observations distinguish conveyor belt mistracking?",
+      "relevant_chunk_ids": [
+        "conveyor-tracking"
+      ]
+    },
+    {
+      "case_id": "exact-14",
+      "query": "What is compared when a conveyor belt slips at the drive pulley?",
+      "relevant_chunk_ids": [
+        "conveyor-slip"
+      ]
+    },
+    {
+      "case_id": "exact-15",
+      "query": "What observations accompany a conveyor transfer-chute material blockage?",
+      "relevant_chunk_ids": [
+        "conveyor-jam"
+      ]
+    },
+    {
+      "case_id": "exact-16",
+      "query": "What is checked for a conveyor photoeye indicating an occupied empty path?",
+      "relevant_chunk_ids": [
+        "conveyor-photoeye"
+      ]
+    },
+    {
+      "case_id": "exact-17",
+      "query": "What motion pattern is described for control valve stiction?",
+      "relevant_chunk_ids": [
+        "valve-stiction"
+      ]
+    },
+    {
+      "case_id": "exact-18",
+      "query": "What evidence identifies a valve position feedback calibration mismatch?",
+      "relevant_chunk_ids": [
+        "valve-feedback"
+      ]
+    },
+    {
+      "case_id": "exact-19",
+      "query": "What does rising process-filter differential pressure at comparable flow indicate?",
+      "relevant_chunk_ids": [
+        "filter-differential"
+      ]
+    },
+    {
+      "case_id": "exact-20",
+      "query": "What evidence distinguishes pressure transmitter drift from real process change?",
+      "relevant_chunk_ids": [
+        "sensor-drift"
+      ]
+    },
+    {
+      "case_id": "paraphrase-01",
+      "query": "The pump delivers less head; which inlet-side restrictions does the record consider?",
+      "relevant_chunk_ids": [
+        "pump-pressure"
+      ]
+    },
+    {
+      "case_id": "paraphrase-02",
+      "query": "The pumping unit sounds as if stones are tumbling and its output surges. Which entry fits?",
+      "relevant_chunk_ids": [
+        "pump-cavitation"
+      ]
+    },
+    {
+      "case_id": "paraphrase-03",
+      "query": "The pump still moves liquid normally but its shaft support is getting hotter. What history matters?",
+      "relevant_chunk_ids": [
+        "pump-bearing"
+      ]
+    },
+    {
+      "case_id": "paraphrase-04",
+      "query": "Liquid is appearing where the rotating shaft enters the pump casing. Which note is relevant?",
+      "relevant_chunk_ids": [
+        "pump-seal"
+      ]
+    },
+    {
+      "case_id": "paraphrase-05",
+      "query": "Air delivery looks normal, but the screw unit warns of weak lubricant supply. Which circuit needs evidence?",
+      "relevant_chunk_ids": [
+        "compressor-oil"
+      ]
+    },
+    {
+      "case_id": "paraphrase-06",
+      "query": "The air leaving the compressor is getting hotter in a poorly ventilated area. Which note fits?",
+      "relevant_chunk_ids": [
+        "compressor-heat"
+      ]
+    },
+    {
+      "case_id": "paraphrase-07",
+      "query": "The air machine keeps switching between working and idling in quick bursts. What trace is useful?",
+      "relevant_chunk_ids": [
+        "compressor-cycling"
+      ]
+    },
+    {
+      "case_id": "paraphrase-08",
+      "query": "Moisture is reaching the pneumatic line after compression. Which observations distinguish possible causes?",
+      "relevant_chunk_ids": [
+        "compressor-water"
+      ]
+    },
+    {
+      "case_id": "paraphrase-09",
+      "query": "The conveyor drive trips while every electrical leg draws similarly elevated current. Which explanation fits?",
+      "relevant_chunk_ids": [
+        "motor-overload"
+      ]
+    },
+    {
+      "case_id": "paraphrase-10",
+      "query": "One electrical phase behaves differently from the others at the motor terminals. Which comparison is relevant?",
+      "relevant_chunk_ids": [
+        "motor-imbalance"
+      ]
+    },
+    {
+      "case_id": "paraphrase-11",
+      "query": "A regular mechanical rumble comes from the electric drive's shaft support. Which history should be reviewed?",
+      "relevant_chunk_ids": [
+        "motor-bearing"
+      ]
+    },
+    {
+      "case_id": "paraphrase-12",
+      "query": "After damp storage, the electric drive's winding isolation measurements differ from earlier records. Which note helps?",
+      "relevant_chunk_ids": [
+        "motor-insulation"
+      ]
+    },
+    {
+      "case_id": "paraphrase-13",
+      "query": "The belt walks toward the side rail and scuffs its edge. Which alignment evidence matters?",
+      "relevant_chunk_ids": [
+        "conveyor-tracking"
+      ]
+    },
+    {
+      "case_id": "paraphrase-14",
+      "query": "The powered roller turns but the belt cannot keep pace. Which contact conditions are relevant?",
+      "relevant_chunk_ids": [
+        "conveyor-slip"
+      ]
+    },
+    {
+      "case_id": "paraphrase-15",
+      "query": "Product is piling up at the handoff and physically blocking belt travel. Which record applies?",
+      "relevant_chunk_ids": [
+        "conveyor-jam"
+      ]
+    },
+    {
+      "case_id": "paraphrase-16",
+      "query": "The light-beam detector claims an item is there, although the passage is clear. What observations matter?",
+      "relevant_chunk_ids": [
+        "conveyor-photoeye"
+      ]
+    },
+    {
+      "case_id": "paraphrase-17",
+      "query": "The valve ignores tiny adjustments, then suddenly moves a large amount. Which behaviour is described?",
+      "relevant_chunk_ids": [
+        "valve-stiction"
+      ]
+    },
+    {
+      "case_id": "paraphrase-18",
+      "query": "The valve stem travels normally, but its displayed opening is wrong. Which sensing issue is relevant?",
+      "relevant_chunk_ids": [
+        "valve-feedback"
+      ]
+    },
+    {
+      "case_id": "paraphrase-19",
+      "query": "The pressure loss across the filter grows although throughput is similar. Which record explains this?",
+      "relevant_chunk_ids": [
+        "filter-differential"
+      ]
+    },
+    {
+      "case_id": "paraphrase-20",
+      "query": "The process reading slowly moves away from a trusted gauge without matching process changes. Which entry fits?",
+      "relevant_chunk_ids": [
+        "sensor-drift"
+      ]
+    },
+    {
+      "case_id": "multi-01",
+      "query": "Compare the records for weak pump hydraulic output and gravel-like pump noise.",
+      "relevant_chunk_ids": [
+        "pump-pressure",
+        "pump-cavitation"
+      ]
+    },
+    {
+      "case_id": "multi-02",
+      "query": "Which evidence covers both a hot pump bearing and a rumbling motor bearing?",
+      "relevant_chunk_ids": [
+        "pump-bearing",
+        "motor-bearing"
+      ]
+    },
+    {
+      "case_id": "multi-03",
+      "query": "Find the entries for liquid around a pump shaft and a valve display that disagrees with actual travel.",
+      "relevant_chunk_ids": [
+        "pump-seal",
+        "valve-feedback"
+      ]
+    },
+    {
+      "case_id": "multi-04",
+      "query": "What records cover a compressor lubrication-pressure alarm and hot discharge air?",
+      "relevant_chunk_ids": [
+        "compressor-oil",
+        "compressor-heat"
+      ]
+    },
+    {
+      "case_id": "multi-05",
+      "query": "Find the compressor records for rapid loading cycles and water carryover downstream.",
+      "relevant_chunk_ids": [
+        "compressor-cycling",
+        "compressor-water"
+      ]
+    },
+    {
+      "case_id": "multi-06",
+      "query": "Compare balanced high motor currents under load with unequal currents and voltages across phases.",
+      "relevant_chunk_ids": [
+        "motor-overload",
+        "motor-imbalance"
+      ]
+    },
+    {
+      "case_id": "multi-07",
+      "query": "Which entries concern damp motor winding insulation and a pressure signal drifting away from a reference?",
+      "relevant_chunk_ids": [
+        "motor-insulation",
+        "sensor-drift"
+      ]
+    },
+    {
+      "case_id": "multi-08",
+      "query": "Compare a belt rubbing one edge with a centred belt lagging behind its drive pulley.",
+      "relevant_chunk_ids": [
+        "conveyor-tracking",
+        "conveyor-slip"
+      ]
+    },
+    {
+      "case_id": "multi-09",
+      "query": "How do the records distinguish real chute accumulation from a false occupied-path indication?",
+      "relevant_chunk_ids": [
+        "conveyor-jam",
+        "conveyor-photoeye"
+      ]
+    },
+    {
+      "case_id": "multi-10",
+      "query": "Find the entries for valve stick-slip motion and rising pressure loss across a loaded filter.",
+      "relevant_chunk_ids": [
+        "valve-stiction",
+        "filter-differential"
+      ]
+    },
+    {
+      "case_id": "contrast-01",
+      "query": "Outlet air pressure is normal; it is the lubricant pressure alarm that is active. Which entry applies?",
+      "relevant_chunk_ids": [
+        "compressor-oil"
+      ]
+    },
+    {
+      "case_id": "contrast-02",
+      "query": "The issue is poor liquid delivery pressure at a centrifugal pump, not lubricant pressure in an air machine.",
+      "relevant_chunk_ids": [
+        "pump-pressure"
+      ]
+    },
+    {
+      "case_id": "contrast-03",
+      "query": "The motor's currents are uneven between phases, rather than all being similarly high. Which record fits?",
+      "relevant_chunk_ids": [
+        "motor-imbalance"
+      ]
+    },
+    {
+      "case_id": "contrast-04",
+      "query": "All motor phase currents are comparably high under mechanical load, not unbalanced. Which record fits?",
+      "relevant_chunk_ids": [
+        "motor-overload"
+      ]
+    },
+    {
+      "case_id": "contrast-05",
+      "query": "The transfer chute is clear, but the conveyor presence detector still says occupied. Which record fits?",
+      "relevant_chunk_ids": [
+        "conveyor-photoeye"
+      ]
+    },
+    {
+      "case_id": "contrast-06",
+      "query": "There is actual material blocking the conveyor transfer path, not just a false detector indication.",
+      "relevant_chunk_ids": [
+        "conveyor-jam"
+      ]
+    },
+    {
+      "case_id": "contrast-07",
+      "query": "The valve moves smoothly but the position transmitter is wrong; there is no stick-slip jump.",
+      "relevant_chunk_ids": [
+        "valve-feedback"
+      ]
+    },
+    {
+      "case_id": "contrast-08",
+      "query": "The valve really sticks then jumps; the issue is not merely an incorrect position display.",
+      "relevant_chunk_ids": [
+        "valve-stiction"
+      ]
+    },
+    {
+      "case_id": "contrast-09",
+      "query": "Independent pressure references remain stable while one transmitter drifts. Which record fits?",
+      "relevant_chunk_ids": [
+        "sensor-drift"
+      ]
+    },
+    {
+      "case_id": "contrast-10",
+      "query": "Independent pressure measurements confirm growing loss across the process filter at similar flow, not just one drifting transmitter.",
+      "relevant_chunk_ids": [
+        "filter-differential"
+      ]
+    }
+  ]
+}
