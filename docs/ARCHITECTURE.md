@@ -2,52 +2,55 @@
 
 这份说明回答三个问题：项目目前能做什么、每个文件负责什么、一次请求怎样经过这些文件。它与源码一起阅读，不需要再另写一份相同内容的学习记录。
 
-核对基准：2026-09-22，Day 17。数据提交 `6c17fa1`，评测代码提交 `6af75fc`。[本次 CI 验收通过](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/35738509646)：**220 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查**。本地 Python 与代码检查同样通过，保留一个已有弃用警告。计划和已知缺口在最后单独说明。
+核对基准：2026-09-23，Day 18，功能提交 `3e8fe3a`。[本次 CI](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/35843019824) 的 **256 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查**通过。本地 Python 与 Ruff 也通过；真实模型调用尚未验证。计划和已知缺口在最后单独说明。
 
-<a id="day17"></a>
+<a id="day18"></a>
 
-## 今天先读：Day 17，用逐题证据检查检索质量
+## 今天先读：Day 18，接入语义向量，区分接入正确与效果改善
 
-今天没有改搜索算法，而是增加了独立的评测语料、标注验证和逐题命中记录。旧的 6 题仍可运行，新基准需要显式指定。它不读取或写入 SQLite，也不会把测试文本加入工作台知识库。
+今天把远程 Embedding 接入现有向量、混合与重排链路，增加了配置开关和批量评测。没有新增依赖、框架或数据库，也没有修改昨天的 60 题及标签。默认仍是哈希模式；程序接入完成不等于已经调用真实模型，更不等于质量提升。
 
-新增数据：20 个已经切好的合成文本块，60 道题，包括 20 道关键词题、20 道改写题、10 道双证据题、10 道相似故障区分题。文本、问题和答案标注全部由 AI 编写，`review_status="unreviewed"`。不是企业工单、厂家手册、人工标注集或独立保留测试集，更不是设备操作规程。
+### 今天改了哪些文件
 
-### 这次实测结果
+| 文件 | 今天的职责 |
+| --- | --- |
+| [infrastructure/openai_embeddings.py](../backend/app/infrastructure/openai_embeddings.py)（新增） | 每批最多 32 条文本发送给模型；按响应 index 恢复顺序，校验数量、维度、有限值和非零向量；失败明确抛错，不切换算法 |
+| [core/config.py](../backend/app/core/config.py)、[.env.example](../.env.example)、[compose.yaml](../compose.yaml) | 独立的向量模型地址、凭证、模型名、期望维度和请求超时；默认关闭远程模式；Docker 同步传入配置 |
+| [api/dependencies.py](../backend/app/api/dependencies.py) | 选择向量提供器，传给现有索引工厂；在线检索器重建时继续使用同一个提供器 |
+| [cli/evaluate_retrieval.py](../backend/app/cli/evaluate_retrieval.py) | 显式 `--include-semantic`，一次批量生成文档与问题向量，再比较三组语义方案；原来四组离线基线保留 |
+| [tests/test_openai_embeddings.py](../tests/test_openai_embeddings.py)（新增）、[tests/conftest.py](../tests/conftest.py) | 36 个新测试覆盖接入与失败路径；隔离本机向量凭证，测试不访问真实模型 |
 
-数据先固定在提交 `6c17fa1`，再运行四种方案；没有根据结果修改标签或调参。数据文件 SHA-256：
+### 启用前必须知道
 
-`e370d8a358c84b41d6860311b9186bd5a652d3c4761413ba5d4c7587a676c196`
+在本机 `.env` 按 [README 的语义向量配置](../README.md#可选启用语义向量) 填写，密钥不要发聊天或提交 Git。默认示例为 `text-embedding-3-small` / 1536 维，依据 [OpenAI 官方 Embedding 文档](https://developers.openai.com/api/docs/guides/embeddings)；兼容服务需使用自己的模型名称和原生输出维度。`EMBEDDING_DIMENSION` 仅校验输出，不发送降维参数。
 
-| 方案 | Recall@1 | Recall@5 | MRR@5 |
-| --- | ---: | ---: | ---: |
-| 哈希向量 | 46.67% | 77.50% | 0.6478 |
-| BM25 | 70.00% | 100.00% | 0.8750 |
-| RRF 混合 | 55.00% | 90.83% | 0.7547 |
-| RRF＋词覆盖重排 | 69.17% | 96.67% | 0.8556 |
+- `EMBEDDING_PROVIDER=openai` 会让应用发送文档块和查询到配置的服务，可能计费；只处理获准发送的材料。回答模型由 `ANSWER_GENERATOR` 独立控制。
+- 修改配置后重启。SQLite 保存文本块，不保存向量；启动和语料变化时重新嵌入已有文本。切换模型会完整重建，不混用哈希、旧模型和新模型向量，但会重复产生调用成本。当前适合小型演示语料。
+- SDK 自动重试关闭，请求超时按单次调用计算，不是整份文档的总时限。长文本超出服务限额时会失败，不静默截断；现有按空白切块方式对长中文仍有限制。
+- 上传流程先保存文本再重建索引。远程嵌入失败时会返回 503，但文本可能已保存，下一次成功刷新会继续索引；错误响应不能理解为事务回滚。
+- 直接检索、问答的模型故障返回安全 503；在 Agent 工具内部发生时沿用失败轨迹和停止逻辑。没有自动换回哈希、无限重试或后台恢复任务。
 
-这是这批未审核合成数据上的结果，不代表真实用户表现。BM25 的 Recall@5 达到 100% 也不意味着首位排序完美，更不意味着答案正确。存在双证据题，所以 Recall@1 与 MRR@1 可以不同：只找到两条标准证据中的一条且排第一时，Recall@1=0.5、倒数排名=1。
+### 怎样验收，不混淆结果
 
-当前混合方案没有超过 BM25，因此不宣称“架构更复杂就更准确”。今天不据此修改线上默认检索器；下一步应先审核标签，再比较真实语义 Embedding。后续调参仍不能把这批开发集当成独立测试集。
+本次已验证：256 项测试通过，其中远程接口用 HTTP 替身验证请求和响应；旧四组 Recall@5 仍为 77.50%、100%、90.83%、96.67%。未验证：真实服务授权、实际语义质量、延迟及费用。本机尚无模型密钥，不能编造真实成绩。
 
-### 怎么运行和查看
+配置可用密钥后，下面命令会真实发送 20 个候选块与 60 道题，可能计费：
 
 ```bash
-UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dataset data/evaluation/maintenance_benchmark.json
+UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dataset data/evaluation/maintenance_benchmark.json --include-semantic --details
 ```
 
-增加 `--details` 可查看每题的 `relevant_chunk_ids`、`retrieved_chunk_ids`、`missing_chunk_ids`、Recall 与倒数排名。无参数运行仍是旧的 6 题。报告会带语料来源、审核状态和文件指纹；平均延迟只计检索调用，不包含导入、建索引、HTTP 或模型生成。
+不带 `--include-semantic` 时，即使应用已设成远程模式，评测也仍是四组离线方案。远程评测将 80 条唯一文本分为 32、32、16 三批，只计算一次向量供三算法及 K=1/3/5 复用；不写 SQLite。`embedding_elapsed_ms` 是批量调用总耗时；各语义方案的 `average_latency_ms` 是预计算向量下的本地检索时间，不能当作在线请求延迟。
 
-一个实际漏检例子：`paraphrase-03` 描述“泵仍正常输液，但轴支撑处越来越热”。标注为 `pump-bearing`，但当前混合重排 Top 5 返回的是 `conveyor-tracking, pump-seal, motor-bearing, conveyor-jam, sensor-drift`，因此 Recall@5 与倒数排名均为 0。先核对原文能否支持标注，再讨论哈希碰撞、候选融合或词覆盖重排的影响，不能只凭这个例子断言唯一原因。
+问题与标签仍是 AI 合成、`unreviewed` 的开发数据。真实服务跑通后，也应先审核标签再讨论优劣；不能要求混合方案必须胜出，也不能把此数据称为独立测试集。Day 17 的完整结果及指导保留在 Git 提交 `292977f` 的本文件历史中。
 
-### 今天的阅读顺序（约 3.5 小时）
+### 今天的阅读顺序（约 3 小时）
 
-1. **25 分钟：数据与验证。** 阅读 [基准 JSON](../data/evaluation/maintenance_benchmark.json) 的头部和前两个文本块，再看 [加载器](../backend/app/services/retrieval_benchmark.py)。它校验重复 ID、归一化后的重复问题、空语料和不存在的相关块，但不能判断标注的语义正确性。
-2. **35 分钟：指标。** 阅读 [评测服务](../backend/app/services/retrieval_evaluation.py) 和对应测试。用标准证据 `{A, B}`、返回 `[C, A, D]` 手算 Recall@3、倒数排名；重点看新增回归测试：检索器超量返回时，两种指标都只能使用前 K 条。
-3. **40 分钟：真实输出。** 阅读 [CLI](../backend/app/cli/evaluate_retrieval.py)，运行上面的命令及 `--details`。找到 `paraphrase-03` 和 `paraphrase-19`，对比 BM25 与混合重排结果。汇总分数和逐题记录来自同一次检索，不为生成诊断重复搜索。
-4. **90 分钟：人工审核练习。** 先看题和候选原文，不看算法排名。单证据题检查目标块是否直接支持问题、其他块是否同样相关；双证据题检查是否确实需要两条。模糊、漏标或不自然的题，记下 `case_id` 和理由发给我即可，不用再建笔记文件。抽查不等于完成全部人工审核，当前保持 `unreviewed`。
-5. **20 分钟：口头复述。** 解释“220 个测试通过”为什么不等于检索质量好；为什么不能把 60 道 AI 题写成 60 道人工标注；为什么 BM25 的这个结果不能直接证明它在所有场景最好。
-
-今天新增的三个文件是基准 JSON、`services/retrieval_benchmark.py` 和 `tests/test_retrieval_benchmark.py`；其余只扩展原来的评测服务、CLI 和测试。没有新增运行依赖或付费调用。Day 16 的阅读指导可在 Git 提交 `10d4952` 的本文件历史中查看，失败处理的当前说明仍在第 10 节。
+1. **35 分钟：适配器。** 看 `openai_embeddings.py`，说明为何不能按响应列表顺序直接绑定原文、为什么维度不符要拒绝、为什么不自动换哈希。
+2. **25 分钟：组装。** 看 `build_embedding_provider()` → `get_retriever()` → `PersistentSearchIndex._refresh()`，跟踪上传、重启和更换模型时文本与向量发生什么。
+3. **30 分钟：评测。** 看 CLI 的 `_FrozenEmbeddings`，说明同一批向量复用为何降低费用，以及为何这时的计时不是线上延迟。
+4. **60 分钟：实操。** 没有密钥时运行 `uv run python -m pytest tests/test_openai_embeddings.py -v` 并阅读代表性断言；配置服务后再做真实评测，比较每题命中而不是只看均值。不要把模拟向量的结果当作语义能力证明。
+5. **30 分钟：审核与复述。** 审核 `paraphrase-03`、`paraphrase-19` 的原文和标签，把疑点发给我，不新增笔记。口头解释“代码接通”“服务跑通”“效果更好”三个不同验收层次。
 
 <a id="day15"></a>
 
@@ -87,7 +90,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dat
 4. **40 分钟：工程边界。** 阅读 `runtime.py`、`Dockerfile`、`compose.yaml` 和 CI。说明访问口令与模型 API Key 的区别；理解 401、429、502、503 和请求编号。当前访问控制是共享口令，限流是进程内计数。
 5. **30 分钟：动手验收。** 上传一份小型手册、检索它、停止并重新启动服务，再检索；提出无关问题观察拒答；在 GitHub Actions 查看真实容器和浏览器测试结果。
 
-这些改动没有接入真实语义 Embedding，也没有把固定策略 Agent 改成模型自主规划。仍需完成的质量评测、公开部署和求职材料见[第 15 节](#limitations)。
+Day 15 当时没有语义 Embedding；Day 18 已增加适配器，但真实服务调用仍待验收。固定策略 Agent 未改成模型自主规划。仍需完成的质量评测、公开部署和求职材料见[第 15 节](#limitations)。
 
 模型错误类型的处理参考 [OpenAI Docs 错误说明](https://developers.openai.com/api/docs/guides/error-codes)；容器依赖安装和工作流参考 [uv Docker 指南](https://docs.astral.sh/uv/guides/integration/docker/)与 [uv GitHub Actions 指南](https://docs.astral.sh/uv/guides/integration/github/)。浏览器测试流程参考 [Playwright CI 指南](https://playwright.dev/docs/ci-intro)。
 
@@ -122,7 +125,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dat
 | 文档解析 | UTF-8 TXT、Markdown、可提取文本的 PDF | 没有 OCR；Markdown 作为文本读取，没有结构化标题解析 |
 | 文档切块 | 重叠窗口、稳定 ID、来源和 PDF 页码 | 按空白分词，不是模型 Tokenizer；`section` 尚未自动提取 |
 | 上传与索引 | 上传后立即可检索，同一 Chunk ID 不重复添加；重启后从 SQLite 恢复 | 保存的是文本块和来源；原文件只经过临时目录，向量和 BM25 统计在内存重建 |
-| 向量检索 | 哈希向量、余弦相似度、排名 | 哈希向量没有学习语义；没有接入向量数据库 |
+| 向量检索 | 默认哈希，可配置远程语义适配器；余弦相似度排名 | 真实语义服务尚待验收；没有向量数据库或持久化向量缓存 |
 | 关键词检索 | BM25 词频和文档长度评分 | 面向当前小型文本集，没有中文专用分词 |
 | 混合检索 | 合并向量和 BM25 排名，再进行查询词覆盖率重排 | 重排是确定性规则，尚未使用神经网络重排模型 |
 | 引用式回答 | 默认摘录证据句；证据不足时拒答；返回来源和摘录 | 引用来源存在，不代表每句结论已被语义验证 |
@@ -130,7 +133,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dat
 | 故障历史工具 | 按设备编号查询演示记录，较新的记录优先 | 数据来自只读 JSON，没有生产数据库连接 |
 | 传感器工具 | 判断单次读数是否低于、处于或高于指定范围 | 阈值由请求提供；没有实时采集、趋势分析或故障预测 |
 | Agent | 根据请求字段选择工具，最多执行三步，返回执行轨迹 | 固定策略与顺序；模型不参与工具选择；没有设备控制能力 |
-| 检索评测 | 原 6 题演示集＋独立 60 题合成基准；四方案指标、逐题命中和遗漏记录 | 60 题尚未经人工审核；只测检索，不测答案质量或生产性能 |
+| 检索评测 | 原 6 题演示集＋60 题合成基准；四组离线及可选三组语义方案，逐题诊断 | 标签未经人工审核；语义评测使用预计算向量，不测在线延迟或答案质量 |
 
 <a id="layers"></a>
 
@@ -158,7 +161,7 @@ flowchart TD
     Parse --> Chunker[切块为 Chunk]
     Chunker --> Store[SQLite 事务保存文本块]
     Store --> Write[重建两个内存索引]
-    Write --> Vector[哈希向量索引]
+    Write --> Vector[哈希或语义向量索引]
     Write --> BM25[BM25 索引]
     Search[搜索路由] --> Retrieval[混合检索与重排]
     Retrieval --> Vector
@@ -200,7 +203,7 @@ flowchart TD
 
 `pyproject.toml` 中，FastAPI/Pydantic 负责接口和验证，pypdf 负责 PDF 文本提取，python-multipart 支持上传表单解析，Uvicorn 启动服务，openai 提供模型客户端。开发依赖中的 reportlab 用于测试时生成 PDF，httpx 用于接口测试，Pytest 和 Ruff 用于验证与代码质量检查。
 
-`.env.example` 中的 `QDRANT_URL`、`QDRANT_COLLECTION`、`DATABASE_URL`、`EMBEDDING_MODEL` 目前是预留示例；`Settings` 没有定义这些字段，也没有对应连接实现。看见配置名称不能视为功能已经接入。
+`.env.example` 中的 `QDRANT_URL`、`QDRANT_COLLECTION`、`DATABASE_URL` 仍是预留示例；没有对应连接实现。`EMBEDDING_MODEL` 等向量配置已在 Day 18 接入，但默认使用无需密钥的哈希模式。
 
 <a id="bootstrap"></a>
 
@@ -227,6 +230,9 @@ flowchart TD
 | `answer_generator` | `extractive` 或 `openai`，默认前者 |
 | `llm_api_key`、`llm_model`、`llm_base_url` | 模型适配器需要的凭证、模型和地址 |
 | `llm_timeout_seconds` | 传给模型客户端的请求超时配置 |
+| `embedding_provider` | `hash` 或 `openai`，默认离线哈希 |
+| `embedding_api_key`、`embedding_model`、`embedding_base_url` | 向量适配器独立的凭证、模型和地址 |
+| `embedding_dimension`、`embedding_timeout_seconds` | 期望输出维度和单次请求超时；不代表总任务时限 |
 | `agent_max_steps` | Agent 最多执行的工具数量，限定 1～3 |
 | `chunk_store_path` | 文本块 SQLite 文件路径，相对路径按项目根目录解析 |
 | `api_access_token` | 共享 API 访问口令；生产模式至少 24 字符 |
@@ -241,11 +247,12 @@ flowchart TD
 | 函数 | 做什么 | 返回什么 |
 | --- | --- | --- |
 | `get_demo_chunks()` | 解析演示泵手册，按 50 词、重叠 10 词切块 | 缓存的 `tuple[Chunk, ...]` |
-| `build_vector_retriever(chunks)` | 使用 128 维哈希向量构建索引 | `InMemoryVectorRetriever` |
+| `build_embedding_provider()` | 按应用配置选择哈希或远程向量，远程模式检查必需配置 | 实现 `EmbeddingProvider` 的对象 |
+| `build_vector_retriever(chunks)` | 默认 128 维哈希，也接受显式注入的向量提供器 | `InMemoryVectorRetriever` |
 | `build_keyword_retriever(chunks)` | 对同一批块建立词频统计 | `InMemoryBM25Retriever` |
 | `build_hybrid_index(chunks)` | 用 RRF 包装向量、BM25 两个索引 | `ReciprocalRankFusionIndex` |
 | `build_reranked_hybrid_index(chunks)` | 在混合索引外再包一层重排 | `RerankingSearchIndex` |
-| `get_retriever()` | 创建 SQLite 存储、幂等写入演示块，组装持久化检索包装层 | 上传、搜索和回答共享的 `PersistentSearchIndex` |
+| `get_retriever()` | 选择提供器、创建 SQLite 存储、幂等写入演示块，并让索引重建继续使用同一提供器 | 上传、搜索和回答共享的 `PersistentSearchIndex` |
 | `get_answer_generator()` | 按配置选择摘录器或模型适配器；模型模式检查密钥和模型名 | 实现 `AnswerGenerator` 的对象 |
 | `get_rag_answer_service()` | 把检索器和生成器交给 RAG 服务 | `RagAnswerService` |
 | `get_fault_history_tool()` | 加载并缓存 JSON 故障记录 | `FaultHistoryLookupTool` |
@@ -372,6 +379,12 @@ TXT/Markdown 分支按 UTF-8 读取文件，统一换行、去掉每行末尾空
 
 类的默认维度是 32，但项目依赖组装时传入的是 128。输出长度为“输入文本条数 × 向量维度”。这套算法便于离线测试；不同词可能哈希到相同位置，也不能自动理解同义词或跨语言语义。
 
+### `backend/app/infrastructure/openai_embeddings.py`：远程语义向量适配器
+
+[打开源码](../backend/app/infrastructure/openai_embeddings.py)。实现同一个 `EmbeddingProvider`，使用现有 OpenAI SDK 的 Embeddings 接口。每批最多 32 条，不自动重试；空列表不调用，空白文本拒绝。按响应 index 对齐输入，拒绝数量错误、索引缺失/重复、维度错误、非有限数和零向量。服务或响应异常转为不含原始响应正文的 `ModelServiceError`，不回退哈希。
+
+这只是协议适配器，不是在本机训练模型。兼容接口、模型可用性、实际检索效果仍需真实服务验证。应用端查询会调用模型；只有评测 CLI 显式预计算并复用向量。
+
 ### `backend/app/infrastructure/vector_retriever.py`：按向量接近程度排序
 
 [打开源码](../backend/app/infrastructure/vector_retriever.py)。`cosine_similarity()` 计算两条向量的余弦相似度，拒绝维度不同的输入，零向量参与计算时返回 0。
@@ -493,6 +506,8 @@ RRF 的 `add_chunks()` 把新块传给所有底层索引，返回各索引新增
 
 [打开源码](../backend/app/cli/evaluate_retrieval.py)。`build_evaluation_summary()` 使用同一份 Chunk 和问题构建四组方案：哈希向量、BM25、RRF、RRF 加覆盖率重排。无参数选择旧演示集，`--dataset` 选择独立基准。每组运行 K=1、3、5，`--details` 增加逐题命中与漏检记录；`main()` 输出 JSON，输入文件错误以退出码 2 报告。
 
+`--include-semantic` 显式启用远程调用，增加语义向量、语义 RRF、语义 RRF＋重排三组。`_FrozenEmbeddings` 为全部唯一语料和问题预计算一次向量，不依赖标签；三组共享同一批向量，避免反复请求。模型调用时间单列，语义检索时间仅包含本地计算。没有这个开关，即使应用配置了远程模式也不会调用远程模型。配置或服务错误以退出码 2 结束，不输出伪成功报告。
+
 这个脚本重新构建独立索引，不连接 Web 服务、不修改 SQLite，也不评测在线知识库。独立基准使用预先切好的文本块，因此不包含 PDF 解析与切块质量；不应称为端到端 RAG 评测。
 
 ```bash
@@ -538,6 +553,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 | 文件 | 主要验证内容 |
 | --- | --- |
 | [tests/test_embeddings.py](../tests/test_embeddings.py) | 协议匹配、向量维度、结果稳定、不区分大小写、示例非零向量归一化、空输入、非法维度 |
+| [tests/test_openai_embeddings.py](../tests/test_openai_embeddings.py) | 模拟 HTTP 的批量与索引对齐、响应异常、超时与状态码、配置、上传与重建、模型切换、失败后文本恢复、远程评测复用及默认离线隔离 |
 | [tests/test_retrieval_ports.py](../tests/test_retrieval_ports.py) | 假检索器满足 `Retriever`，结果保留 Chunk 与分数，并遵守数量限制 |
 | [tests/test_vector_retriever.py](../tests/test_vector_retriever.py) | 余弦相似度的同向/正交/反向/零向量；检索排序、元数据、输入限制、接入哈希向量、动态添加和去重 |
 | [tests/test_keyword_retriever.py](../tests/test_keyword_retriever.py) | BM25 精确词匹配靠前、大小写、空索引、新增去重、参数和请求限制 |
@@ -570,7 +586,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 | [tests/test_retrieval_benchmark.py](../tests/test_retrieval_benchmark.py) | 来源与标签读取；重复 ID/问题、无效引用、空数据、损坏或缺失文件；合成基准规模及未审核状态 |
 | [tests/test_retrieval_evaluation_cli.py](../tests/test_retrieval_evaluation_cli.py) | 默认 6 题兼容、60 题模块命令、数据指纹、逐题与汇总一致、输入错误码、不触碰持久化知识库 |
 
-Day 17 执行 `python -m pytest`：220 项通过，保留一个已有的 Starlette/httpx 弃用警告。今天新增 19 项基准和评测测试；测试通过约束程序行为，不代表人工标注已经审核或检索质量已经达标。
+Day 18 执行 `python -m pytest`：256 项通过，保留一个已有的 Starlette/httpx 弃用警告。今天新增 36 项测试；测试使用模拟模型 HTTP，不代表真实模型调用通过、标注已审核或检索质量达标。
 
 <a id="support-files"></a>
 
@@ -685,7 +701,7 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 
 ## 15. 已知缺口与后续工作
 
-以下基于 Day 17 源码与本次验证结果，便于理解实现的真实范围。
+以下基于 Day 18 源码与本次验证结果，便于理解实现的真实范围。
 
 | 项目 | 当前状态与影响 |
 | --- | --- |
@@ -695,7 +711,7 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 | 状态持久化 | SQLite 保存文本块并驱动索引重建；事务回滚和跨实例读取已测。没有 PostgreSQL/Qdrant、跨主机同步、大规模增量索引或删除/版本清理功能 |
 | 文档处理 | 无 OCR、章节自动提取、表格专用解析及中文切块优化；PDF ID 依据文件名和拼接全文，没有编码全部分页结构 |
 | 真实模型验证 | 模型适配器的测试使用假客户端；尚不能把该测试结果当作线上模型质量、延迟或费用证据 |
-| 检索质量 | 真实语义 Embedding 尚未接入；已有 60 题 AI 合成标注草案，但不等于至少 50 题人工标注已完成；混合重排在该草案上仍未超过 BM25，独立测试集与真实质量提升未完成 |
+| 检索质量 | 语义 Embedding 适配器与评测已接入，真实调用尚待配置密钥验收；60 题合成标签未人工审核，哈希混合重排仍未超过 BM25；独立测试集、真实质量和费用未完成 |
 | Agent 深度 | 固定策略和结果拼接已实现；没有模型自主规划、多个工具结果的模型综合推理、自动重试或故障恢复 |
 | 产品与部署 | 已有中文工作台、共享口令、进程内限流、请求日志、Docker/Compose 和 CI；多用户账号、分布式限流、公开 HTTPS 部署、负载与成本评测仍未完成 |
 
