@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
     llm_timeout_seconds: float = Field(default=30.0, gt=0.0, le=120.0)
+    embedding_provider: Literal["hash", "openai"] = "hash"
+    embedding_base_url: str = "https://api.openai.com/v1"
+    embedding_api_key: SecretStr | None = None
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dimension: int = Field(default=1536, ge=1, le=65536)
+    embedding_timeout_seconds: float = Field(default=30.0, gt=0.0, le=120.0)
     agent_max_steps: int = Field(default=3, ge=1, le=3)
     chunk_store_path: Path = Path("data/processed/documents.sqlite3")
     api_access_token: SecretStr | None = None

@@ -3,15 +3,19 @@ import json
 from collections.abc import Sequence
 from hashlib import sha256
 from pathlib import Path
+from time import perf_counter
 
 from backend.app.api.dependencies import (
+    build_embedding_provider,
     build_hybrid_index,
     build_keyword_retriever,
     build_reranked_hybrid_index,
     build_vector_retriever,
     get_demo_chunks,
 )
-from backend.app.ports.retrieval import Retriever
+from backend.app.core.config import get_settings
+from backend.app.core.errors import ModelServiceError
+from backend.app.ports.retrieval import Embedding, EmbeddingProvider, Retriever
 from backend.app.services.retrieval_benchmark import load_retrieval_benchmark
 from backend.app.services.retrieval_evaluation import (
     RetrievalEvaluationCase,
@@ -21,6 +25,19 @@ from backend.app.services.retrieval_evaluation import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 EVALUATION_CASES_PATH = PROJECT_ROOT / "data" / "evaluation" / "retrieval_cases.json"
+
+
+class _FrozenEmbeddings:
+    """One evaluation's vectors, reused fairly across K values and algorithms."""
+
+    def __init__(self, provider: EmbeddingProvider, texts: Sequence[str]) -> None:
+        unique = list(dict.fromkeys(texts))
+        vectors = provider.embed(unique)
+        self.dimension = provider.dimension
+        self._vectors = dict(zip(unique, vectors, strict=True))
+
+    def embed(self, texts: Sequence[str]) -> list[Embedding]:
+        return [list(self._vectors[text]) for text in texts]
 
 
 def _evaluate_baseline(
@@ -69,7 +86,7 @@ def _evaluate_baseline(
 
 
 def build_evaluation_summary(
-    dataset_path: Path | None = None, *, details: bool = False
+    dataset_path: Path | None = None, *, details: bool = False, include_semantic: bool = False
 ) -> dict[str, object]:
     if dataset_path is None:
         cases = load_evaluation_cases(EVALUATION_CASES_PATH)
@@ -117,6 +134,30 @@ def build_evaluation_summary(
         "case_count": len(cases),
         "baselines": baselines,
     }
+    if include_semantic:
+        provider = build_embedding_provider("openai")
+        texts = [chunk.text for chunk in chunks] + [case.query for case in cases]
+        started = perf_counter()
+        frozen = _FrozenEmbeddings(provider, texts)
+        elapsed = (perf_counter() - started) * 1000
+        for name, builder in (
+            ("semantic-embedding", build_vector_retriever),
+            ("semantic-rrf-hybrid", build_hybrid_index),
+            ("semantic-rrf-hybrid-token-overlap-reranked", build_reranked_hybrid_index),
+        ):
+            baselines.append(
+                _evaluate_baseline(
+                    name, builder(chunks, embedding_provider=frozen), cases, details=details
+                )
+            )
+        summary["semantic_embedding"] = {
+            "provider": "openai-compatible",
+            "model": get_settings().embedding_model,
+            "dimension": provider.dimension,
+            "unique_text_count": len(set(texts)),
+            "embedding_elapsed_ms": elapsed,
+            "latency_scope": "precomputed vectors; retrieval only, not online query latency",
+        }
     if dataset_metadata is not None:
         summary["dataset"] = dataset_metadata
     return summary
@@ -126,10 +167,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Compare retrieval baselines on the same corpus.")
     parser.add_argument("--dataset", type=Path, help="Self-contained benchmark JSON file")
     parser.add_argument("--details", action="store_true", help="Include per-case hits and misses")
+    parser.add_argument(
+        "--include-semantic",
+        action="store_true",
+        help="Send corpus and queries to the configured embedding API (may incur charges)",
+    )
     args = parser.parse_args(argv)
     try:
-        summary = build_evaluation_summary(args.dataset, details=args.details)
-    except (ValueError, OSError) as exc:
+        summary = build_evaluation_summary(
+            args.dataset, details=args.details, include_semantic=args.include_semantic
+        )
+    except (ValueError, OSError, ModelServiceError) as exc:
         parser.error(str(exc))
     print(
         json.dumps(

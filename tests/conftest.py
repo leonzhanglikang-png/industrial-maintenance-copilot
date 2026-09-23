@@ -15,6 +15,12 @@ def pytest_configure(config: pytest.Config) -> None:
         "APP_ENV": "development",
         "API_ACCESS_TOKEN": "",
         "LLM_API_KEY": "",
+        "EMBEDDING_PROVIDER": "hash",
+        "EMBEDDING_API_KEY": "",
+        "EMBEDDING_MODEL": "text-embedding-3-small",
+        "EMBEDDING_DIMENSION": "1536",
+        "EMBEDDING_BASE_URL": "https://api.openai.com/v1",
+        "EMBEDDING_TIMEOUT_SECONDS": "30",
     }.items():
         environment.setenv(name, value)
     config.add_cleanup(environment.undo)

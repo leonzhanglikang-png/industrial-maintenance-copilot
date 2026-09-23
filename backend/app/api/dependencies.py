@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 
 from backend.app.core.config import get_settings
@@ -25,6 +25,7 @@ from backend.app.infrastructure.maintenance_tools import (
 from backend.app.infrastructure.openai_answer_generator import (
     OpenAIResponsesAnswerGenerator,
 )
+from backend.app.infrastructure.openai_embeddings import OpenAIEmbeddingProvider
 from backend.app.infrastructure.persistent_retriever import PersistentSearchIndex
 from backend.app.infrastructure.reranking import (
     RerankingSearchIndex,
@@ -34,6 +35,7 @@ from backend.app.infrastructure.vector_retriever import (
     InMemoryVectorRetriever,
 )
 from backend.app.ports.answering import AnswerGenerator
+from backend.app.ports.retrieval import EmbeddingProvider
 from backend.app.services.document_chunker import chunk_document
 from backend.app.services.document_parser import parse_text_document
 from backend.app.services.maintenance_agent import BoundedMaintenanceAgent
@@ -58,8 +60,11 @@ def get_demo_chunks() -> tuple[Chunk, ...]:
 
 def build_vector_retriever(
     chunks: Sequence[Chunk],
+    *,
+    embedding_provider: EmbeddingProvider | None = None,
 ) -> InMemoryVectorRetriever:
-    embedding_provider = DeterministicHashEmbeddingProvider(dimension=128)
+    if embedding_provider is None:
+        embedding_provider = DeterministicHashEmbeddingProvider(dimension=128)
 
     return InMemoryVectorRetriever(
         chunks,
@@ -75,10 +80,12 @@ def build_keyword_retriever(
 
 def build_hybrid_index(
     chunks: Sequence[Chunk],
+    *,
+    embedding_provider: EmbeddingProvider | None = None,
 ) -> ReciprocalRankFusionIndex:
     return ReciprocalRankFusionIndex(
         [
-            build_vector_retriever(chunks),
+            build_vector_retriever(chunks, embedding_provider=embedding_provider),
             build_keyword_retriever(chunks),
         ]
     )
@@ -86,20 +93,52 @@ def build_hybrid_index(
 
 def build_reranked_hybrid_index(
     chunks: Sequence[Chunk],
+    *,
+    embedding_provider: EmbeddingProvider | None = None,
 ) -> RerankingSearchIndex:
     return RerankingSearchIndex(
-        build_hybrid_index(chunks),
+        build_hybrid_index(chunks, embedding_provider=embedding_provider),
         TokenOverlapReranker(),
+    )
+
+
+def build_embedding_provider(provider: str | None = None) -> EmbeddingProvider:
+    settings = get_settings()
+    selected = settings.embedding_provider if provider is None else provider
+    if selected == "hash":
+        return DeterministicHashEmbeddingProvider(dimension=128)
+    if selected != "openai":
+        raise ModelConfigurationError("Unsupported embedding provider")
+    api_key = (
+        settings.embedding_api_key.get_secret_value().strip() if settings.embedding_api_key else ""
+    )
+    if (
+        not api_key
+        or not settings.embedding_model.strip()
+        or not settings.embedding_base_url.strip()
+    ):
+        raise ModelConfigurationError(
+            "EMBEDDING_API_KEY, EMBEDDING_MODEL and EMBEDDING_BASE_URL are required"
+        )
+    return OpenAIEmbeddingProvider(
+        api_key=api_key,
+        model=settings.embedding_model,
+        dimension=settings.embedding_dimension,
+        base_url=settings.embedding_base_url,
+        timeout_seconds=settings.embedding_timeout_seconds,
     )
 
 
 @lru_cache
 def get_retriever() -> PersistentSearchIndex:
+    provider = build_embedding_provider()
     store_path = get_settings().chunk_store_path
     if not store_path.is_absolute():
         store_path = PROJECT_ROOT / store_path
     return PersistentSearchIndex(
-        SQLiteChunkStore(store_path), build_reranked_hybrid_index, get_demo_chunks()
+        SQLiteChunkStore(store_path),
+        partial(build_reranked_hybrid_index, embedding_provider=provider),
+        get_demo_chunks(),
     )
 
 
