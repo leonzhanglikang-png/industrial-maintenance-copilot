@@ -11,11 +11,13 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_version: str = "0.1.0"
     api_prefix: str = "/api/v1"
-    answer_generator: Literal["extractive", "openai"] = "extractive"
+    answer_generator: Literal["extractive", "openai", "chat_completions"] = "extractive"
     llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
     llm_timeout_seconds: float = Field(default=30.0, gt=0.0, le=120.0)
+    chat_max_tokens: int = Field(default=512, ge=1, le=4096)
+    chat_disable_thinking: bool = False
     embedding_provider: Literal["hash", "openai"] = "hash"
     embedding_base_url: str = "https://api.openai.com/v1"
     embedding_api_key: SecretStr | None = None

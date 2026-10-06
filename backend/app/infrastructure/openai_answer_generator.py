@@ -84,38 +84,11 @@ class OpenAIResponsesAnswerGenerator:
             response = self._client.responses.create(
                 model=self._model,
                 instructions=GENERATOR_INSTRUCTIONS,
-                input=_build_model_input(query, evidence),
+                input=build_model_input(query, evidence),
             )
         except APIError as exc:
             raise ModelServiceError("Model service is temporarily unavailable") from exc
-        answer = response.output_text.strip()
-
-        if not answer or answer == NO_EVIDENCE_ANSWER:
-            return self._fallback()
-
-        citation_numbers = _ordered_unique_citation_numbers(answer)
-
-        if not citation_numbers:
-            return self._fallback()
-
-        if any(number > len(evidence) for number in citation_numbers):
-            raise CitationValidationError("model cited an unknown source marker")
-
-        # The public citation list follows first appearance, not retrieval order.
-        # Replace every marker in one pass so swapping S2/S1 cannot cascade.
-        canonical_numbers = {
-            original: canonical for canonical, original in enumerate(citation_numbers, start=1)
-        }
-        answer = CITATION_PATTERN.sub(
-            lambda match: f"[S{canonical_numbers[int(match.group(1))]}]",
-            answer,
-        )
-
-        return AnswerDraft(
-            answer=answer,
-            cited_chunk_ids=[evidence[number - 1].chunk.chunk_id for number in citation_numbers],
-            generation_method=f"openai-responses:{self._model}",
-        )
+        return parse_model_answer(response.output_text, evidence, f"openai-responses:{self._model}")
 
     def _fallback(self) -> AnswerDraft:
         return AnswerDraft(
@@ -124,7 +97,36 @@ class OpenAIResponsesAnswerGenerator:
         )
 
 
-def _build_model_input(
+def parse_model_answer(
+    answer: str, evidence: Sequence[SearchResult], generation_method: str
+) -> AnswerDraft:
+    """Shared citation validation for Responses and Chat Completions adapters."""
+    answer = answer.strip()
+    if not answer or answer == NO_EVIDENCE_ANSWER:
+        return AnswerDraft(answer=NO_EVIDENCE_ANSWER, generation_method=generation_method)
+
+    citation_numbers = _ordered_unique_citation_numbers(answer)
+    if not citation_numbers:
+        return AnswerDraft(answer=NO_EVIDENCE_ANSWER, generation_method=generation_method)
+
+    if any(number > len(evidence) for number in citation_numbers):
+        raise CitationValidationError("model cited an unknown source marker")
+
+    # Replace markers in one pass so exchanging S2/S1 cannot cascade.
+    canonical_numbers = {
+        original: canonical for canonical, original in enumerate(citation_numbers, start=1)
+    }
+    answer = CITATION_PATTERN.sub(
+        lambda match: f"[S{canonical_numbers[int(match.group(1))]}]", answer
+    )
+    return AnswerDraft(
+        answer=answer,
+        cited_chunk_ids=[evidence[number - 1].chunk.chunk_id for number in citation_numbers],
+        generation_method=generation_method,
+    )
+
+
+def build_model_input(
     query: str,
     evidence: Sequence[SearchResult],
 ) -> str:

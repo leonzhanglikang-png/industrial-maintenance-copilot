@@ -8,6 +8,7 @@ from backend.app.domain.documents import Chunk
 from backend.app.infrastructure.answer_generators import (
     ExtractiveAnswerGenerator,
 )
+from backend.app.infrastructure.chat_answer_generator import ChatCompletionsAnswerGenerator
 from backend.app.infrastructure.chunk_store import SQLiteChunkStore
 from backend.app.infrastructure.embeddings import (
     DeterministicHashEmbeddingProvider,
@@ -156,7 +157,19 @@ def get_answer_generator() -> AnswerGenerator:
 
     if not api_key or not model:
         raise ModelConfigurationError(
-            "LLM_API_KEY and LLM_MODEL are required when ANSWER_GENERATOR=openai"
+            "LLM_API_KEY and LLM_MODEL are required for remote answer generation"
+        )
+
+    if not settings.llm_base_url.strip():
+        raise ModelConfigurationError("LLM_BASE_URL must not be blank")
+    if settings.answer_generator == "chat_completions":
+        return ChatCompletionsAnswerGenerator(
+            api_key=api_key,
+            model=model,
+            base_url=settings.llm_base_url,
+            timeout_seconds=settings.llm_timeout_seconds,
+            max_tokens=settings.chat_max_tokens,
+            disable_thinking=settings.chat_disable_thinking,
         )
 
     return OpenAIResponsesAnswerGenerator(
