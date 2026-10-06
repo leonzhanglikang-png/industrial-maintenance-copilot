@@ -15,7 +15,7 @@
 - 具有稳定 ID、重叠窗口和引用元数据的文档切块；
 - 文档上传、动态索引和可追溯搜索 API；
 - 确定性哈希向量检索与 BM25 关键词检索；
-- 可配置的 OpenAI 兼容语义向量适配器，批量调用、响应校验和明确失败处理（真实服务待验收）；
+- 已实测的本地 CPU 多语言语义向量（384 维 MiniLM），以及可选 OpenAI 兼容远程向量适配器；
 - 基于 Reciprocal Rank Fusion（RRF）的排名融合；
 - 基于查询词覆盖率的轻量候选重排；
 - 可拒答的证据摘录生成器，以及经过检索候选校验的 `[S1]` 引用；
@@ -29,21 +29,22 @@
 - 模型正文与引用列表统一编号，模型故障和引用错误返回明确状态码；
 - 可配置共享访问口令、进程内限流、请求编号和 JSON 请求日志；
 - 非 root Docker 镜像、持久卷，以及 GitHub CI 容器与浏览器测试；
+- 腾讯云独立 systemd 服务、公网 HTTPS 和自动证书续期；
 - 可复现的 Recall@K、MRR 和平均延迟离线评测；
 - 独立的 60 题合成检索基准、来源与标注校验、逐题命中和漏检诊断（尚待人工审核）；
 - Pytest 自动化测试和 Ruff 代码质量检查。
 
-当前已经完成可本地演示的 RAG/Agent 应用。Milestone 2 已有 60 题合成评测草案，但人工审核、独立测试集和真实质量提升仍未完成；Milestone 5 的公开部署和最终求职材料也仍未完成。CI 结果以对应代码提交的实际运行记录为准。
+当前已实现 RAG/Agent 技术演示主体，并部署到 [公网工作台](https://124.221.234.13/)。服务器启用真实本地语义向量；回答暂为离线摘录，等待将 DeepSeek 密钥传到指定服务器的单独授权。人工审核评测、独立测试集、负载/成本报告和最终求职材料仍未完成。
 
-2026-10-06 验收：代码提交 `f78dba1` 的 **294 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查全部通过**，见[本次 CI 记录](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/37451668316)。CI 不调用付费模型；另在本机完成 3 次授权 DeepSeek 真调用。Embedding 仍只有模拟接口验证。
+2026-10-06 验收：代码提交 `ed59fc5` 的 **303 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查全部通过**，见[本次 CI 记录](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/37454801797)。CI 不调用付费模型、不下载权重；另行完成本地真实语义模型与公网链路验证。本机此前 3 次 DeepSeek 真调用共 1489 token，不等于服务器已经启用该模型。
 
 默认演示使用确定性哈希向量和证据摘录式回答生成器，目的是在不依赖外部模型的情况下验证完整 RAG/Agent 链路。设置 `ANSWER_GENERATOR=openai` 后可改用 Responses API，但没有密钥也能运行全部离线功能。哈希向量不能被等同于语义 Embedding；旧 6 题上四方案的 Recall/MRR 相同，新增 60 题未审核合成基准上 BM25 的 Recall@5 为 100%，当前混合重排为 96.67%，不能声称混合方案优于 BM25 或代表生产质量。
 
 ## 计划实现
 
-1. 人工审核检索标注、建立独立测试集并完成语义 Embedding 的真实调用与对比验收；
+1. 人工审核检索标注、建立独立测试集，继续公平比较已经实测的语义方案；
 2. 扩展回答质量评测、Agent 失败后的恢复策略和工具结果综合推理（DeepSeek 小样本真调用已验证）；
-3. 完成公开 HTTPS 部署、负载与成本评测、求职材料；如需规模扩展，再迁移到 PostgreSQL/Qdrant。
+3. 获得密钥传输授权后启用公网 DeepSeek 回答，完成负载与成本评测、求职材料；如需规模扩展，再迁移到 PostgreSQL/Qdrant。
 
 ## 本地运行
 
@@ -98,7 +99,25 @@ Chat 适配器禁用自动重试。截断、过滤或意外工具调用不作为
 
 ### 可选：启用语义向量
 
-只编辑本机 `.env`，不要提交密钥。向量模型与回答模型独立配置；`ANSWER_GENERATOR=extractive` 不代表语义检索也免费或离线。
+向量模型与回答模型独立配置。没有独立向量 API 密钥时，使用已实测的本地 CPU 模型，不占用 DeepSeek 调用额度。先安装可选依赖并下载固定版本的公开模型（约 255 MiB，文件被 Git 忽略）：
+
+```bash
+UV_CACHE_DIR=.uv-cache uv sync --frozen --extra semantic
+UV_CACHE_DIR=.uv-cache uv run --extra semantic python -c 'from huggingface_hub import snapshot_download; from backend.app.infrastructure.local_embeddings import MODEL_REPOSITORY, MODEL_REVISION; snapshot_download(MODEL_REPOSITORY, revision=MODEL_REVISION, local_dir="data/models/minilm")'
+```
+
+本机 `.env` 配置如下，然后用 `uv run --extra semantic uvicorn backend.app.main:app --reload --no-access-log` 启动：
+
+```dotenv
+EMBEDDING_PROVIDER=local
+EMBEDDING_LOCAL_PATH=data/models/minilm
+EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+EMBEDDING_DIMENSION=384
+```
+
+本地模式只读取已有文件，不在服务运行时自动下载。CPU 推理不调用付费向量 API，但占用服务器资源。相对路径按项目根目录解析；模型固定在适配器中，不支持仅修改模型名就加载任意权重。本次模型来自 [Qdrant 发布的量化 ONNX 仓库](https://huggingface.co/Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q)，版本与下载逻辑见源码。
+
+如需远程向量服务，只编辑本机 `.env`，不要提交密钥；远程模式可能计费：
 
 ```dotenv
 EMBEDDING_PROVIDER=openai
@@ -111,7 +130,7 @@ EMBEDDING_TIMEOUT_SECONDS=30
 
 修改后重启服务。默认仍是 `EMBEDDING_PROVIDER=hash`，无需密钥。上述模型的默认输出为 1536 维，接口使用 `encoding_format="float"`，依据 [OpenAI 官方文档](https://developers.openai.com/api/docs/guides/embeddings)。`EMBEDDING_DIMENSION` 只校验模型输出，不请求降维；使用兼容服务时，需要按其模型填写地址、名称与原生维度，兼容性须实测。
 
-启用后，文档块和查询会发送到配置的模型服务，可能产生费用。不要上传未经许可的资料。当前 SQLite 只保存文本，启动和语料变化时重新生成向量；大语料的缓存与增量优化尚未实现。模型错误不会自动回退哈希，API 返回安全的 503。Embedding 仍未配置真实服务，接入测试使用模拟 HTTP；DeepSeek 回答真调用不替代向量验收。
+远程模式会将文档块和查询发送到配置的模型服务，不要上传未经许可的资料。当前 SQLite 只保存文本，启动和语料变化时重新生成向量；大语料的缓存与增量优化尚未实现。模型错误不会自动回退哈希，API 返回安全的 503。远程 Embedding 仍只有模拟 HTTP 验证；本地语义模型已经实测，两者不要混称。
 
 Agent 的 `/agent/runs` 有独立的执行结果约定：工具开始执行后失败，会返回 HTTP 200 的执行记录，`stopped_reason="tool_failure"`，最后一步为 `failed`；已完成的答案和引用保留，后续工具停止。HTTP 200 只表示拿到了记录，不表示分析成功。运行前的配置错误仍返回 503。当前不支持自动重试或断点续跑。
 
@@ -134,7 +153,15 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
-打开 `http://127.0.0.1:8000/`，输入同一个访问口令。Compose 默认只监听本机端口，使用命名卷保留 SQLite 数据。`docker compose down` 保留卷；不要在需要保留知识库时使用 `down -v`。生产外网部署还需要具体主机、HTTPS 和持久磁盘配置，仓库中的 Docker 文件不等于已经公开上线。
+打开 `http://127.0.0.1:8000/`，输入同一个访问口令。Compose 默认只监听本机端口，使用命名卷保留 SQLite 数据。`docker compose down` 保留卷；不要在需要保留知识库时使用 `down -v`。现有镜像未安装 `semantic` extra、Compose 未挂载本地模型，不能直接用它运行本地语义模式；本次腾讯云部署使用下面的 systemd 方案。
+
+### 已上线的腾讯云服务
+
+- 入口：[https://124.221.234.13/](https://124.221.234.13/)，业务接口需要共享访问口令；本机口令文件为 `data/processed/tencent-access.txt`，不要提交或公开它，也不要在页面输入模型 API Key。
+- 项目目录 `/home/ubuntu/industrial-maintenance-copilot`；`maintenance-copilot.service` 单进程监听 `127.0.0.1:8010`，Nginx 通过 443 转发。原有 80/8000 网站保留。
+- 使用受信任的 Let's Encrypt IP 证书；短期证书由 `copilot-certificate-renew.timer` 每日两次检查续期。证书续期模拟测试已通过，服务和 timer 已启用开机启动；没有重启整台服务器。
+- 已实际验证 HTTPS、未认证 401、上传英文合成手册后中文检索、带引用离线回答、缺证据拒答、三步 Agent，以及服务重启后上传数据仍可检索。当前服务器未存放 DeepSeek 密钥。
+- 运维命令：`ssh tencent 'systemctl status maintenance-copilot.service'`；查看请求日志用 `journalctl -u maintenance-copilot.service`；只重启本项目用 `sudo systemctl restart maintenance-copilot.service`。可复用的配置在 `deploy/`，不要覆盖原网站配置。
 
 [GitHub Actions](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions) 会在代码推送后运行 Python 测试、Ruff、JS 语法检查、Docker 构建、容器鉴权与重启持久化检查，再通过 Chromium 测试桌面三工具流程、上传后的检索、文本安全展示和手机布局。截图保存在对应运行的 `workbench-browser-check` artifact 中。纯 README/docs 更新不会重复运行代码 CI。
 
@@ -154,13 +181,13 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dat
 
 添加 `--details` 可查看逐题相关块、返回块、漏检块与指标。输出包含数据来源、`review_status` 和 SHA-256 指纹。该基准由 AI 编写，当前为 `unreviewed`，不是人工标注或真实设备数据；预切块评测不包含文档解析、答案生成或在线负载。评测不会修改 SQLite 或在线知识库，具体结果与审核指导见架构说明顶部。
 
-配置好向量服务后，显式添加 `--include-semantic` 可增加语义向量、语义混合、语义混合重排三组对比：
+配置好本地或远程向量后，显式添加 `--include-semantic` 可增加语义向量、语义混合、语义混合重排三组对比；本地模式需要保留 `--extra semantic`：
 
 ```bash
-UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dataset data/evaluation/maintenance_benchmark.json --include-semantic --details
+UV_CACHE_DIR=.uv-cache uv run --extra semantic python -m backend.app.cli.evaluate_retrieval --dataset data/evaluation/maintenance_benchmark.json --include-semantic --details
 ```
 
-这会向模型服务发送基准语料与问题，可能计费；不带此开关始终只测原来的四组离线方案，不受应用的向量模式影响。60 题基准的 80 条唯一文本只批量嵌入一次，并复用于不同 K 和算法。报告单列 `embedding_elapsed_ms`；语义方案的 `average_latency_ms` 使用预计算向量，不是线上端到端延迟。此处尚没有真实语义模型成绩。
+本地模式使用本机 CPU，远程模式向服务发送基准语料与问题并可能计费；不带此开关始终只测原来的四组离线方案。60 题基准的 80 条唯一文本只批量嵌入一次，并复用于不同 K 和算法。报告单列 `embedding_elapsed_ms`；语义方案的 `average_latency_ms` 使用预计算向量，不是线上端到端延迟。本次真实本地模型 Recall@5 为 97.5%，语义 RRF 为 100%；标签仍未经人工审核，不代表独立测试或生产正确率，完整比较见架构说明顶部。
 
 ## 目录结构
 
@@ -169,12 +196,13 @@ backend/        FastAPI 应用和后续领域服务
 frontend/       中文工作台静态页面和浏览器测试
 data/           示例数据和被 Git 忽略的运行数据
 docs/           系统架构与项目路线图
+deploy/         本次公网服务、HTTPS 和证书续期配置
 tests/          自动化测试
 ```
 
 进一步阅读：
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：中文功能总览、逐文件职责、请求调用链、测试说明；今天先读 Day 19 的 DeepSeek 真调用记录与阅读指导；
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：中文功能总览、逐文件职责、请求调用链、测试说明；今天先读 Day 20 的真实语义向量与部署阅读指导；
 - [`docs/ROADMAP.md`](docs/ROADMAP.md)：功能里程碑和完成标准。
 
 ## 项目原则

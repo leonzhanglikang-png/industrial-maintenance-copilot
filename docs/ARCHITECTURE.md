@@ -2,11 +2,53 @@
 
 这份说明回答三个问题：项目目前能做什么、每个文件负责什么、一次请求怎样经过这些文件。它与源码一起阅读，不需要再另写一份相同内容的学习记录。
 
-核对基准：2026-10-06，Day 19，功能提交 `f78dba1`。[本次 CI](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/37451668316) 的 **294 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查通过**。本地 Python/Ruff 同样通过；另获用户授权后完成 3 次真实 DeepSeek 调用，两类验收不能混为一谈。
+核对基准：2026-10-06，Day 20，功能提交 `ed59fc5`。[本次 CI](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/37454801797) 的 **303 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查通过**。另完成真实本地语义模型与腾讯云公网验证；CI 中的模拟测试不等于模型实测。
+
+<a id="day20"></a>
+
+## 今天先读：Day 20，真实语义向量与 HTTPS 上线
+
+没有独立向量 API 凭证，因此采用预训练多语言 MiniLM 的量化 ONNX 模型，在 CPU 上生成 384 维向量；不是拿 DeepSeek 聊天接口充当 Embedding，也没有训练新模型。语义层与已有 BM25、RRF、持久化和回答接口直接组合，不引入新 Agent 框架。
+
+### 实际验证与边界
+
+- 本机真实模型：中文“泵的出口压力偏低”与英文同义句余弦相似度 **0.8467**，与无关报销文本 **0.1747**。这是一个实测例子，不是总体准确率。
+- 60 题、20 块的既有未审核合成基准：80 条唯一文本编码约 **451 ms**，不包括模型加载。下表是 K=5 的实际比较；检索延迟使用预计算向量，不是公网延迟。
+
+| 方案 | Recall@5 | MRR@5 |
+| --- | ---: | ---: |
+| 哈希向量 | 77.5% | 0.6478 |
+| BM25 | 100% | 0.8750 |
+| 哈希 RRF＋覆盖率重排 | 96.67% | 0.8556 |
+| 本地语义向量 | 97.5% | 0.9422 |
+| 本地语义 RRF | 100% | 0.9583 |
+| 本地语义 RRF＋覆盖率重排 | 100% | 0.9111 |
+
+BM25 在这批数据上召回已经满分，不能声称语义方案提高了它的 Recall；语义 RRF 的 MRR 更高，但关键词重排反而降低 MRR。标签未人工审核、没有独立保留集，因此未据此自动改动线上重排策略或宣称生产质量提升。
+
+- 公网 [HTTPS 工作台](https://124.221.234.13/) 使用有效受信任证书；未认证业务请求返回 401。上传英文 `deployment_compressor.md` 后，中文“压缩机启动前应该检查什么？”首个来源正确，单次公网检索约 **340 ms**；冷启动上传约 **4.09 s**，不是 P95。
+- 公网英文问题的摘录回答带有效来源，报销问题拒答；Agent 知识、历史、传感器三步均 `succeeded`。重启本项目服务后，上传文档和中文检索仍正常。
+- 模型加载后 systemd 统计约 **728 MiB**，机器可用内存约 **1.9 GB**；这不是并发容量测试。单 worker 使用两个 CPU 推理线程。
+- Nginx 443 转发到本项目回环 8010；原网站 80/8000 未变。服务和续期 timer 已启用；证书续期模拟成功。未重启整机，所以只确认开机配置，不声称实际重启整机验收。
+- 服务器当前为 `ANSWER_GENERATOR=extractive`。DeepSeek 密钥传输被自动审批拒绝，等待用户对指定密钥＋指定服务器的单独授权；本轮未新增付费调用。中文跨语言检索能用，不代表离线摘录器能翻译英文答案。
+
+### 今天的文件与阅读顺序（约 90 分钟）
+
+| 时间 | 文件 | 需要理解什么 |
+| --- | --- | --- |
+| 25 分钟 | [local_embeddings.py](../backend/app/infrastructure/local_embeddings.py) | 固定模型/版本、CPU 加载、384 维校验；失败为什么不偷偷降级成哈希；模型文件不进入 Git |
+| 20 分钟 | [config.py](../backend/app/core/config.py) → [dependencies.py](../backend/app/api/dependencies.py) → [persistent_retriever.py](../backend/app/infrastructure/persistent_retriever.py) | `hash/local/openai` 的选择；保存的是文本，重启时重新编码并建索引 |
+| 20 分钟 | [evaluate_retrieval.py](../backend/app/cli/evaluate_retrieval.py)、[test_local_embeddings.py](../tests/test_local_embeddings.py) | 显式语义评测、复用一次编码；9 项离线测试为什么不能代替实际 ONNX 验证 |
+| 15 分钟 | [maintenance-copilot.service](../deploy/maintenance-copilot.service)、[maintenance-copilot.nginx](../deploy/maintenance-copilot.nginx) | 浏览器 → HTTPS Nginx → 8010 FastAPI；环境文件、单进程、失败重启和原网站隔离 |
+| 10 分钟 | [续期 service](../deploy/copilot-certificate-renew.service)、[timer](../deploy/copilot-certificate-renew.timer) | 短期 IP 证书需要自动续期；续期成功才校验并重载 Nginx |
+
+`pyproject.toml`/`uv.lock` 增加可选 `semantic` 依赖；`.env.example` 增加本地模型路径，`.gitignore` 排除权重。默认安装和 CI 仍不下载模型。下载、启动和运维命令见 [README](../README.md#可选启用语义向量)。模型来源为 [Qdrant 固定版本仓库](https://huggingface.co/Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q)，IP 证书续期方式参考 [Let's Encrypt 官方说明](https://letsencrypt.org/2026/03/11/shorter-certs-certbot)。
+
+阅读后只需口头回答：为什么聊天模型和向量模型分开？为什么重启后还能找到文档？为什么 Recall=100% 不等于项目完美？无需复制代码或额外写学习文档。用户要求的 [HANDOFF.md](HANDOFF.md) 只用于接续未完成的部署授权步骤，不是另一份学习记录。
 
 <a id="day19"></a>
 
-## 今天先读：Day 19，DeepSeek 真调用与多协议回答适配
+## 上次内容：Day 19，DeepSeek 真调用与多协议回答适配
 
 今天在原有 Python 后端增加 Chat Completions 回答适配器，未引入 Pi 或新运行框架。现有 `AnswerGenerator` 接口下保留三种模式：离线摘录、OpenAI Responses、Chat Completions。DeepSeek 使用第三种；更换地址不等于协议兼容。
 
@@ -36,7 +78,7 @@
 
 ### 如何使用
 
-本机已切换为 DeepSeek 回答模式，重新启动服务后，问答和 Agent 知识步骤会产生模型调用。配置与启动命令见 [README](../README.md#deepseek-回答配置)。只想离线练习时改 `ANSWER_GENERATOR=extractive`；本次未改 `EMBEDDING_PROVIDER=hash`。
+Day 19 本机切换为 DeepSeek 回答模式，问答和 Agent 知识步骤会产生模型调用。配置与启动命令见 [README](../README.md#deepseek-回答配置)。只想离线练习时改 `ANSWER_GENERATOR=extractive`；当时仍用哈希，Day 20 已切换本地语义向量。
 
 兼容服务是否支持 max_tokens、system 消息等要逐家验收；`CHAT_DISABLE_THINKING=true` 是显式的 DeepSeek 扩展，不应默认发给所有供应商。512 token 是成本边界，较长回答可能截断；此时程序返回 503，不把残缺答案当完成。提高上限应同时考虑费用，不自动重试补全。
 
@@ -47,7 +89,7 @@
 3. **20 分钟：失败与成本。** 看 finish_reason、max_retries=0 和请求上限，解释为什么 length 即使含 [S1] 也要报错。
 4. **20 分钟：验收结果。** 复述上表三个场景，并说清真实调用、模拟测试、检索质量与上线验收的区别。无需为了阅读重复付费调用。
 
-Day 18 向量接入指导保留在 Git 提交 `a21f30c` 的本文件历史；当前文件下方仍保留逐文件说明。下一步缺口是独立 Embedding 服务实测、人工审核标签、Agent 结果综合与公开部署，不再把 DeepSeek 回答接入列为未完成。
+Day 18 向量接入指导保留在 Git 提交 `a21f30c` 的本文件历史；Day 20 已补齐本地语义模型实测与公网离线链路，当前授权停点见顶部。
 
 <a id="day15"></a>
 
@@ -87,7 +129,7 @@ Day 18 向量接入指导保留在 Git 提交 `a21f30c` 的本文件历史；当
 4. **40 分钟：工程边界。** 阅读 `runtime.py`、`Dockerfile`、`compose.yaml` 和 CI。说明访问口令与模型 API Key 的区别；理解 401、429、502、503 和请求编号。当前访问控制是共享口令，限流是进程内计数。
 5. **30 分钟：动手验收。** 上传一份小型手册、检索它、停止并重新启动服务，再检索；提出无关问题观察拒答；在 GitHub Actions 查看真实容器和浏览器测试结果。
 
-Day 15 当时没有语义 Embedding；Day 18 已增加适配器，但真实服务调用仍待验收。固定策略 Agent 未改成模型自主规划。仍需完成的质量评测、公开部署和求职材料见[第 15 节](#limitations)。
+Day 15 当时没有语义 Embedding；Day 20 已完成本地模型实测与 HTTPS 上线。固定策略 Agent 未改成模型自主规划。仍需完成的质量评测、服务器 DeepSeek 授权和求职材料见[第 15 节](#limitations)。
 
 模型错误类型的处理参考 [OpenAI Docs 错误说明](https://developers.openai.com/api/docs/guides/error-codes)；容器依赖安装和工作流参考 [uv Docker 指南](https://docs.astral.sh/uv/guides/integration/docker/)与 [uv GitHub Actions 指南](https://docs.astral.sh/uv/guides/integration/github/)。浏览器测试流程参考 [Playwright CI 指南](https://playwright.dev/docs/ci-intro)。
 
@@ -122,11 +164,11 @@ Day 15 当时没有语义 Embedding；Day 18 已增加适配器，但真实服�
 | 文档解析 | UTF-8 TXT、Markdown、可提取文本的 PDF | 没有 OCR；Markdown 作为文本读取，没有结构化标题解析 |
 | 文档切块 | 重叠窗口、稳定 ID、来源和 PDF 页码 | 按空白分词，不是模型 Tokenizer；`section` 尚未自动提取 |
 | 上传与索引 | 上传后立即可检索，同一 Chunk ID 不重复添加；重启后从 SQLite 恢复 | 保存的是文本块和来源；原文件只经过临时目录，向量和 BM25 统计在内存重建 |
-| 向量检索 | 默认哈希，可配置远程语义适配器；余弦相似度排名 | 真实语义服务尚待验收；没有向量数据库或持久化向量缓存 |
+| 向量检索 | 默认哈希，可选已实测的本地 CPU 语义模型或远程适配器；余弦相似度排名 | 远程服务未真测；没有向量数据库或持久化向量缓存 |
 | 关键词检索 | BM25 词频和文档长度评分 | 面向当前小型文本集，没有中文专用分词 |
 | 混合检索 | 合并向量和 BM25 排名，再进行查询词覆盖率重排 | 重排是确定性规则，尚未使用神经网络重排模型 |
 | 引用式回答 | 默认摘录证据句；证据不足时拒答；返回来源和摘录 | 引用来源存在，不代表每句结论已被语义验证 |
-| 可选模型回答 | 支持 OpenAI Responses 与 Chat Completions；DeepSeek 完成三例真调用 | OpenAI 与 Embedding 未真测；三例 DeepSeek 冒烟不代表全面质量或线上服务验收 |
+| 可选模型回答 | 支持 OpenAI Responses 与 Chat Completions；DeepSeek 完成本机三例真调用 | OpenAI 未真测；公网暂为摘录，等待服务器密钥传输授权 |
 | 故障历史工具 | 按设备编号查询演示记录，较新的记录优先 | 数据来自只读 JSON，没有生产数据库连接 |
 | 传感器工具 | 判断单次读数是否低于、处于或高于指定范围 | 阈值由请求提供；没有实时采集、趋势分析或故障预测 |
 | Agent | 根据请求字段选择工具，最多执行三步，返回执行轨迹 | 固定策略与顺序；模型不参与工具选择；没有设备控制能力 |
@@ -228,7 +270,8 @@ flowchart TD
 | `llm_api_key`、`llm_model`、`llm_base_url` | 模型适配器需要的凭证、模型和地址 |
 | `llm_timeout_seconds` | 传给模型客户端的请求超时配置 |
 | `chat_max_tokens`、`chat_disable_thinking` | Chat 输出上限（默认 512）及 DeepSeek 非思考扩展开关（默认关闭） |
-| `embedding_provider` | `hash` 或 `openai`，默认离线哈希 |
+| `embedding_provider` | `hash`、`local` 或 `openai`，默认离线哈希 |
+| `embedding_local_path` | 本地语义模式的已下载模型目录，相对路径按项目根目录解析 |
 | `embedding_api_key`、`embedding_model`、`embedding_base_url` | 向量适配器独立的凭证、模型和地址 |
 | `embedding_dimension`、`embedding_timeout_seconds` | 期望输出维度和单次请求超时；不代表总任务时限 |
 | `agent_max_steps` | Agent 最多执行的工具数量，限定 1～3 |
@@ -245,7 +288,7 @@ flowchart TD
 | 函数 | 做什么 | 返回什么 |
 | --- | --- | --- |
 | `get_demo_chunks()` | 解析演示泵手册，按 50 词、重叠 10 词切块 | 缓存的 `tuple[Chunk, ...]` |
-| `build_embedding_provider()` | 按应用配置选择哈希或远程向量，远程模式检查必需配置 | 实现 `EmbeddingProvider` 的对象 |
+| `build_embedding_provider()` | 按配置选择哈希、本地语义或远程向量；本地模式不需要 API 密钥 | 实现 `EmbeddingProvider` 的对象 |
 | `build_vector_retriever(chunks)` | 默认 128 维哈希，也接受显式注入的向量提供器 | `InMemoryVectorRetriever` |
 | `build_keyword_retriever(chunks)` | 对同一批块建立词频统计 | `InMemoryBM25Retriever` |
 | `build_hybrid_index(chunks)` | 用 RRF 包装向量、BM25 两个索引 | `ReciprocalRankFusionIndex` |
@@ -376,6 +419,12 @@ TXT/Markdown 分支按 UTF-8 读取文件，统一换行、去掉每行末尾空
 [打开源码](../backend/app/infrastructure/embeddings.py)。`DeterministicHashEmbeddingProvider` 将词语转为小写形式，用正则取词，根据 SHA-256 决定向量中的位置和正负方向，累加后做单位长度归一化；零向量保持为零。
 
 类的默认维度是 32，但项目依赖组装时传入的是 128。输出长度为“输入文本条数 × 向量维度”。这套算法便于离线测试；不同词可能哈希到相同位置，也不能自动理解同义词或跨语言语义。
+
+### `backend/app/infrastructure/local_embeddings.py`：本地真实语义向量
+
+[打开源码](../backend/app/infrastructure/local_embeddings.py)。`LocalSemanticEmbeddingProvider` 通过 FastEmbed/ONNX Runtime 读取预先下载的固定 MiniLM 权重，使用 CPU、两个线程，每批 8 条；输出经过数量、384 维、有限值和非零检查。缺依赖/权重属于配置错误，加载/推理失败属于安全的服务错误。关闭 ONNX 遥测，不自动联网下载或回退哈希。
+
+量化权重约 225 MiB，含 tokenizer 等文件约 255 MiB。FastEmbed 会按模型 tokenizer 的长度上限截断；现有按空白切块对长中文不友好，长文效果仍需改进和独立测量。向量不要求自身单位归一化，检索器的余弦函数会处理范数。
 
 ### `backend/app/infrastructure/openai_embeddings.py`：远程语义向量适配器
 
@@ -510,7 +559,7 @@ RRF 的 `add_chunks()` 把新块传给所有底层索引，返回各索引新增
 
 [打开源码](../backend/app/cli/evaluate_retrieval.py)。`build_evaluation_summary()` 使用同一份 Chunk 和问题构建四组方案：哈希向量、BM25、RRF、RRF 加覆盖率重排。无参数选择旧演示集，`--dataset` 选择独立基准。每组运行 K=1、3、5，`--details` 增加逐题命中与漏检记录；`main()` 输出 JSON，输入文件错误以退出码 2 报告。
 
-`--include-semantic` 显式启用远程调用，增加语义向量、语义 RRF、语义 RRF＋重排三组。`_FrozenEmbeddings` 为全部唯一语料和问题预计算一次向量，不依赖标签；三组共享同一批向量，避免反复请求。模型调用时间单列，语义检索时间仅包含本地计算。没有这个开关，即使应用配置了远程模式也不会调用远程模型。配置或服务错误以退出码 2 结束，不输出伪成功报告。
+`--include-semantic` 显式启用语义模型：配置为 `local` 时运行本地 CPU，其余沿用远程适配器，增加语义向量、语义 RRF、语义 RRF＋重排三组。`_FrozenEmbeddings` 为全部唯一语料和问题预计算一次向量，不依赖标签；三组共享同一批向量。模型编码时间单列，检索时间仅包含本地计算。不带开关只测四组旧离线方案。配置或服务错误以退出码 2 结束，不输出伪成功报告。
 
 这个脚本重新构建独立索引，不连接 Web 服务、不修改 SQLite，也不评测在线知识库。独立基准使用预先切好的文本块，因此不包含 PDF 解析与切块质量；不应称为端到端 RAG 评测。
 
@@ -557,6 +606,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 | 文件 | 主要验证内容 |
 | --- | --- |
 | [tests/test_embeddings.py](../tests/test_embeddings.py) | 协议匹配、向量维度、结果稳定、不区分大小写、示例非零向量归一化、空输入、非法维度 |
+| [tests/test_local_embeddings.py](../tests/test_local_embeddings.py) | 注入假模型验证空白输入、384 维/有限/非零、错误脱敏、无权重时不下载、无密钥组装及语义评测只编码一次；不在 Pytest 下载或执行真权重 |
 | [tests/test_openai_embeddings.py](../tests/test_openai_embeddings.py) | 模拟 HTTP 的批量与索引对齐、响应异常、超时与状态码、配置、上传与重建、模型切换、失败后文本恢复、远程评测复用及默认离线隔离 |
 | [tests/test_retrieval_ports.py](../tests/test_retrieval_ports.py) | 假检索器满足 `Retriever`，结果保留 Chunk 与分数，并遵守数量限制 |
 | [tests/test_vector_retriever.py](../tests/test_vector_retriever.py) | 余弦相似度的同向/正交/反向/零向量；检索排序、元数据、输入限制、接入哈希向量、动态添加和去重 |
@@ -591,7 +641,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 | [tests/test_retrieval_benchmark.py](../tests/test_retrieval_benchmark.py) | 来源与标签读取；重复 ID/问题、无效引用、空数据、损坏或缺失文件；合成基准规模及未审核状态 |
 | [tests/test_retrieval_evaluation_cli.py](../tests/test_retrieval_evaluation_cli.py) | 默认 6 题兼容、60 题模块命令、数据指纹、逐题与汇总一致、输入错误码、不触碰持久化知识库 |
 
-Day 19 执行 `python -m pytest`：294 项通过，保留一个已有的 Starlette/httpx 弃用警告。今天新增 38 项离线测试；本机 `.env` 已有密钥，但测试配置覆盖为离线和空凭证。另行授权的三次真实模型调用不计入 Pytest 数量。
+Day 20 执行 `python -m pytest`：303 项通过，保留一个已有的 Starlette/httpx 弃用警告。新增 9 项离线本地向量测试；本机 `.env` 已有密钥，但测试配置覆盖为哈希/摘录和空凭证。真实 ONNX 验证、公网验收与此前三次 DeepSeek 调用不计入 Pytest 数量。
 
 <a id="support-files"></a>
 
@@ -706,7 +756,7 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 
 ## 15. 已知缺口与后续工作
 
-以下基于 Day 19 源码与本次验证结果，便于理解实现的真实范围。
+以下基于 Day 20 源码与本次验证结果，便于理解实现的真实范围。
 
 | 项目 | 当前状态与影响 |
 | --- | --- |
@@ -715,10 +765,10 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 | 错误处理 | 直接问答保留 502/503；Agent 工具内部异常返回 HTTP 200 的 `tool_failure` 执行记录，保留部分结果。执行前的依赖错误仍走 5xx；没有自动重试、续跑或故障恢复 |
 | 状态持久化 | SQLite 保存文本块并驱动索引重建；事务回滚和跨实例读取已测。没有 PostgreSQL/Qdrant、跨主机同步、大规模增量索引或删除/版本清理功能 |
 | 文档处理 | 无 OCR、章节自动提取、表格专用解析及中文切块优化；PDF ID 依据文件名和拼接全文，没有编码全部分页结构 |
-| 真实模型验证 | DeepSeek 已有三次授权真调用记录；OpenAI Responses 与 Embedding 未真测；仍缺全面质量评估和在线负载测量 |
-| 检索质量 | 语义 Embedding 适配器与评测已接入，真实调用尚待配置密钥验收；60 题合成标签未人工审核，哈希混合重排仍未超过 BM25；独立测试集、真实质量和费用未完成 |
+| 真实模型验证 | DeepSeek 本机三次真调用、本地 MiniLM 和公网语义检索已测；远程 Embedding/OpenAI Responses 未真测，服务器 DeepSeek 待单独授权 |
+| 检索质量 | 本地语义模型比较已有真实数值；60 题合成标签未人工审核，独立测试集及真实设备质量未完成；不能把满召回当生产正确率 |
 | Agent 深度 | 固定策略和结果拼接已实现；没有模型自主规划、多个工具结果的模型综合推理、自动重试或故障恢复 |
-| 产品与部署 | 已有中文工作台、共享口令、进程内限流、请求日志、Docker/Compose 和 CI；多用户账号、分布式限流、公开 HTTPS 部署、负载与成本评测仍未完成 |
+| 产品与部署 | HTTPS/systemd/续期、公网上传与重启恢复已验证；共享口令不是多用户权限，代理后限流共享计数；负载、成本和独立新用户验收未完成 |
 
 当前使用标准库 SQLite 持久化，页面由 FastAPI 直接提供 HTML/CSS/JS，替代原定的 Streamlit 方案以保持单服务启动。PostgreSQL/Qdrant 保留为规模扩展方向，不应列为已接入组件。
 
@@ -755,4 +805,4 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 UV_CACHE_DIR=.uv-cache uv run python -m pytest
 ```
 
-从阅读结果形成面试表述时，可以准确说：已实现文档导入、文本块持久化、混合检索、引用式回答、可配置模型适配器、三个只读工具的受约束工作流、中文演示台及自动化验证。DeepSeek 已完成三例真实调用；容器与浏览器依据 CI 实际记录。检索质量提升、全面模型评估及公开部署仍需要后续证据。
+从阅读结果形成面试表述时，可以准确说：已实现文档导入、文本块持久化、真实多语言 CPU 语义向量、混合检索、引用式回答、三个只读工具的受约束工作流、中文工作台及 HTTPS 上线。DeepSeek 已完成本机三例真实调用；容器与浏览器依据 CI 实际记录。服务器 DeepSeek 授权、独立质量和负载评估仍待完成，不能称为自主规划 Agent 或生产级系统。
