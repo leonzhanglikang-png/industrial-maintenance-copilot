@@ -20,7 +20,7 @@
 - 基于查询词覆盖率的轻量候选重排；
 - 可拒答的证据摘录生成器，以及经过检索候选校验的 `[S1]` 引用；
 - 可显式启用的 OpenAI Responses 回答生成器，无引用或越界引用会被拒绝；
-- Chat Completions 回答适配器，DeepSeek 已完成 3 次授权真调用冒烟验收，保留引用校验、输出上限和安全失败处理；
+- Chat Completions 回答适配器，DeepSeek 本机和公网分别完成 3 次授权真调用，保留引用校验、输出上限和安全失败处理；
 - 只读的历史故障查询和传感器区间分析工具；
 - 最多执行三步、返回完整工具轨迹的确定性策略 Agent；
 - Agent 工具异常时立即停止，保留已完成步骤与引用，并在工作台显示失败步骤；
@@ -34,9 +34,9 @@
 - 独立的 60 题合成检索基准、来源与标注校验、逐题命中和漏检诊断（尚待人工审核）；
 - Pytest 自动化测试和 Ruff 代码质量检查。
 
-当前已实现 RAG/Agent 技术演示主体，并部署到 [公网工作台](https://124.221.234.13/)。服务器启用真实本地语义向量；回答暂为离线摘录，等待将 DeepSeek 密钥传到指定服务器的单独授权。人工审核评测、独立测试集、负载/成本报告和最终求职材料仍未完成。
+当前已实现 RAG/Agent 技术演示主体，并部署到 [公网工作台](https://124.221.234.13/)。服务器使用真实本地语义向量与 DeepSeek 回答，中文问答、引用、拒答和三步 Agent 已实测。人工审核评测、独立测试集、负载/成本报告和最终求职材料仍未完成。
 
-2026-10-06 验收：代码提交 `ed59fc5` 的 **303 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查全部通过**，见[本次 CI 记录](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/37454801797)。CI 不调用付费模型、不下载权重；另行完成本地真实语义模型与公网链路验证。本机此前 3 次 DeepSeek 真调用共 1489 token，不等于服务器已经启用该模型。
+2026-10-06 验收：代码提交 `ed59fc5` 的 **303 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查全部通过**，见[本次 CI 记录](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/37454801797)。CI 不调用付费模型、不下载权重；另行完成本地真实语义模型与公网链路验证。本机此前 3 次 DeepSeek 真调用共 1489 token；取得服务器密钥传输授权后，新增 3 次公网真调用全部通过，未继续付费测试。公网 API 不返回 token 使用量，实际费用以服务商账单为准。
 
 默认演示使用确定性哈希向量和证据摘录式回答生成器，目的是在不依赖外部模型的情况下验证完整 RAG/Agent 链路。设置 `ANSWER_GENERATOR=openai` 后可改用 Responses API，但没有密钥也能运行全部离线功能。哈希向量不能被等同于语义 Embedding；旧 6 题上四方案的 Recall/MRR 相同，新增 60 题未审核合成基准上 BM25 的 Recall@5 为 100%，当前混合重排为 96.67%，不能声称混合方案优于 BM25 或代表生产质量。
 
@@ -44,7 +44,7 @@
 
 1. 人工审核检索标注、建立独立测试集，继续公平比较已经实测的语义方案；
 2. 扩展回答质量评测、Agent 失败后的恢复策略和工具结果综合推理（DeepSeek 小样本真调用已验证）；
-3. 获得密钥传输授权后启用公网 DeepSeek 回答，完成负载与成本评测、求职材料；如需规模扩展，再迁移到 PostgreSQL/Qdrant。
+3. 完成负载与成本评测、求职材料；如需规模扩展，再迁移到 PostgreSQL/Qdrant。
 
 ## 本地运行
 
@@ -160,7 +160,8 @@ docker compose logs -f
 - 入口：[https://124.221.234.13/](https://124.221.234.13/)，业务接口需要共享访问口令；本机口令文件为 `data/processed/tencent-access.txt`，不要提交或公开它，也不要在页面输入模型 API Key。
 - 项目目录 `/home/ubuntu/industrial-maintenance-copilot`；`maintenance-copilot.service` 单进程监听 `127.0.0.1:8010`，Nginx 通过 443 转发。原有 80/8000 网站保留。
 - 使用受信任的 Let's Encrypt IP 证书；短期证书由 `copilot-certificate-renew.timer` 每日两次检查续期。证书续期模拟测试已通过，服务和 timer 已启用开机启动；没有重启整台服务器。
-- 已实际验证 HTTPS、未认证 401、上传英文合成手册后中文检索、带引用离线回答、缺证据拒答、三步 Agent，以及服务重启后上传数据仍可检索。当前服务器未存放 DeepSeek 密钥。
+- 已实际验证 HTTPS、未认证 401、公网上传后中文检索、服务重启后数据恢复；进一步通过真实 DeepSeek 验证中文引用回答、缺证据拒答及三工具 Agent。密钥经用户单独授权通过 SSH 传输，服务器 `.env` 权限为 600；未输出、进入页面或加入 Git。
+- 公网问答和 Agent 的知识步骤现在会调用付费 DeepSeek 服务；只做原文检索不调用聊天模型。需要暂停模型费用时将服务器 `ANSWER_GENERATOR=extractive` 后重启本项目，语义向量仍在本地 CPU 运行。
 - 运维命令：`ssh tencent 'systemctl status maintenance-copilot.service'`；查看请求日志用 `journalctl -u maintenance-copilot.service`；只重启本项目用 `sudo systemctl restart maintenance-copilot.service`。可复用的配置在 `deploy/`，不要覆盖原网站配置。
 
 [GitHub Actions](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions) 会在代码推送后运行 Python 测试、Ruff、JS 语法检查、Docker 构建、容器鉴权与重启持久化检查，再通过 Chromium 测试桌面三工具流程、上传后的检索、文本安全展示和手机布局。截图保存在对应运行的 `workbench-browser-check` artifact 中。纯 README/docs 更新不会重复运行代码 CI。
