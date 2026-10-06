@@ -19,6 +19,7 @@ from backend.app.infrastructure.hybrid_retriever import (
 from backend.app.infrastructure.keyword_retriever import (
     InMemoryBM25Retriever,
 )
+from backend.app.infrastructure.local_embeddings import LocalSemanticEmbeddingProvider
 from backend.app.infrastructure.maintenance_tools import (
     FaultHistoryLookupTool,
     SensorRangeAnalysisTool,
@@ -108,6 +109,11 @@ def build_embedding_provider(provider: str | None = None) -> EmbeddingProvider:
     selected = settings.embedding_provider if provider is None else provider
     if selected == "hash":
         return DeterministicHashEmbeddingProvider(dimension=128)
+    if selected == "local":
+        model_path = settings.embedding_local_path
+        if not model_path.is_absolute():
+            model_path = PROJECT_ROOT / model_path
+        return LocalSemanticEmbeddingProvider(model_path)
     if selected != "openai":
         raise ModelConfigurationError("Unsupported embedding provider")
     api_key = (

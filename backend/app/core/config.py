@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=30.0, gt=0.0, le=120.0)
     chat_max_tokens: int = Field(default=512, ge=1, le=4096)
     chat_disable_thinking: bool = False
-    embedding_provider: Literal["hash", "openai"] = "hash"
+    embedding_provider: Literal["hash", "openai", "local"] = "hash"
+    embedding_local_path: Path = Path("data/models/minilm")
     embedding_base_url: str = "https://api.openai.com/v1"
     embedding_api_key: SecretStr | None = None
     embedding_model: str = "text-embedding-3-small"

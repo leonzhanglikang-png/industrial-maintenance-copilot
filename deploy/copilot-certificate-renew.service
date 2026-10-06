@@ -1,0 +1,7 @@
+[Unit]
+Description=Renew Copilot IP HTTPS certificate
+After=network-online.target nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/copilot-certbot/bin/certbot renew --quiet --cert-name maintenance-copilot --deploy-hook "/usr/sbin/nginx -t && /bin/systemctl reload nginx"

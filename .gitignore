@@ -17,6 +17,7 @@ data/processed/*
 !data/processed/.gitkeep
 data/uploads/*
 !data/uploads/.gitkeep
+data/models/
 logs/*
 !logs/.gitkeep
 # Local learning notes

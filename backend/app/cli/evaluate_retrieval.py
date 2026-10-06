@@ -135,7 +135,8 @@ def build_evaluation_summary(
         "baselines": baselines,
     }
     if include_semantic:
-        provider = build_embedding_provider("openai")
+        selected = "local" if get_settings().embedding_provider == "local" else "openai"
+        provider = build_embedding_provider(selected)
         texts = [chunk.text for chunk in chunks] + [case.query for case in cases]
         started = perf_counter()
         frozen = _FrozenEmbeddings(provider, texts)
@@ -151,8 +152,8 @@ def build_evaluation_summary(
                 )
             )
         summary["semantic_embedding"] = {
-            "provider": "openai-compatible",
-            "model": get_settings().embedding_model,
+            "provider": "local-fastembed" if selected == "local" else "openai-compatible",
+            "model": getattr(provider, "model", get_settings().embedding_model),
             "dimension": provider.dimension,
             "unique_text_count": len(set(texts)),
             "embedding_elapsed_ms": elapsed,
@@ -170,7 +171,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument(
         "--include-semantic",
         action="store_true",
-        help="Send corpus and queries to the configured embedding API (may incur charges)",
+        help="Use local semantic model or embedding API (remote calls may incur charges)",
     )
     args = parser.parse_args(argv)
     try:

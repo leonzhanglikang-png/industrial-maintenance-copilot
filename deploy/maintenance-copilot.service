@@ -1,0 +1,21 @@
+[Unit]
+Description=Industrial Maintenance Copilot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/industrial-maintenance-copilot
+EnvironmentFile=/home/ubuntu/industrial-maintenance-copilot/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/industrial-maintenance-copilot/.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8010 --workers 1 --no-access-log --no-proxy-headers
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
