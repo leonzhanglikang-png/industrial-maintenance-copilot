@@ -2,55 +2,52 @@
 
 这份说明回答三个问题：项目目前能做什么、每个文件负责什么、一次请求怎样经过这些文件。它与源码一起阅读，不需要再另写一份相同内容的学习记录。
 
-核对基准：2026-09-23，Day 18，功能提交 `3e8fe3a`。[本次 CI](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/35843019824) 的 **256 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查**通过。本地 Python 与 Ruff 也通过；真实模型调用尚未验证。计划和已知缺口在最后单独说明。
+核对基准：2026-10-06，Day 19，功能提交 `f78dba1`。[本次 CI](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/37451668316) 的 **294 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查通过**。本地 Python/Ruff 同样通过；另获用户授权后完成 3 次真实 DeepSeek 调用，两类验收不能混为一谈。
 
-<a id="day18"></a>
+<a id="day19"></a>
 
-## 今天先读：Day 18，接入语义向量，区分接入正确与效果改善
+## 今天先读：Day 19，DeepSeek 真调用与多协议回答适配
 
-今天把远程 Embedding 接入现有向量、混合与重排链路，增加了配置开关和批量评测。没有新增依赖、框架或数据库，也没有修改昨天的 60 题及标签。默认仍是哈希模式；程序接入完成不等于已经调用真实模型，更不等于质量提升。
+今天在原有 Python 后端增加 Chat Completions 回答适配器，未引入 Pi 或新运行框架。现有 `AnswerGenerator` 接口下保留三种模式：离线摘录、OpenAI Responses、Chat Completions。DeepSeek 使用第三种；更换地址不等于协议兼容。
+
+### 本次真实验收
+
+配置：官方 `https://api.deepseek.com`、`deepseek-flash`、非思考模式、单次输出上限 512 token、关闭 SDK 自动重试。密钥只从本机 `.env` 读取，未输出或加入 Git。协议参数对照 [DeepSeek 文档](https://api-docs.deepseek.com/api/create-chat-completion/) 和 [OpenAI SDK 文档](https://developers.openai.com/api/reference/python/resources/chat/subresources/completions/methods/create)。
+
+| 场景 | 实际观察 | 单次本地请求耗时 | 服务返回总 token |
+| --- | --- | ---: | ---: |
+| 泵出口压力偏低，询问手册中的检查项 | HTTP 200，有效 S1 引用；回答内容与给定示例段落一致 | 1.165 秒 | 491 |
+| 询问手册未给出的轴更换零件号与紧固扭矩 | HTTP 200，固定拒答、无引用、grounded=false | 0.647 秒 | 481 |
+| 中文问题＋pump-001＋示例温度读数 | HTTP 200，知识/历史/传感器三步 succeeded，stopped_reason=completed | 0.933 秒 | 517 |
+
+三次输入合计 **1398 token**、输出 **91 token**、总计 **1489 token**；均返回 finish_reason=stop。未继续调用。以上是服务返回的 token 计数，不是账单金额，实际计费以服务商为准。
+
+**边界：** 使用真实模型网络请求和本地 FastAPI TestClient 路由，依赖覆盖为“仅索引仓库合成泵手册”的隔离 BM25 检索器；没有读取用户上传库、没有访问真实设备。中文问题的关键词分数为 0，但小语料全部三块进入候选后模型可回答，这不证明跨语言检索有效。这三次不是公开部署、浏览器真实模型验收、全面正确率或负载 P95，也不代表语义 Embedding 已验收。Agent 仍是固定三步及结果拼接，不是模型自主规划。
 
 ### 今天改了哪些文件
 
-| 文件 | 今天的职责 |
+| 文件 | 阅读重点 |
 | --- | --- |
-| [infrastructure/openai_embeddings.py](../backend/app/infrastructure/openai_embeddings.py)（新增） | 每批最多 32 条文本发送给模型；按响应 index 恢复顺序，校验数量、维度、有限值和非零向量；失败明确抛错，不切换算法 |
-| [core/config.py](../backend/app/core/config.py)、[.env.example](../.env.example)、[compose.yaml](../compose.yaml) | 独立的向量模型地址、凭证、模型名、期望维度和请求超时；默认关闭远程模式；Docker 同步传入配置 |
-| [api/dependencies.py](../backend/app/api/dependencies.py) | 选择向量提供器，传给现有索引工厂；在线检索器重建时继续使用同一个提供器 |
-| [cli/evaluate_retrieval.py](../backend/app/cli/evaluate_retrieval.py) | 显式 `--include-semantic`，一次批量生成文档与问题向量，再比较三组语义方案；原来四组离线基线保留 |
-| [tests/test_openai_embeddings.py](../tests/test_openai_embeddings.py)（新增）、[tests/conftest.py](../tests/conftest.py) | 36 个新测试覆盖接入与失败路径；隔离本机向量凭证，测试不访问真实模型 |
+| [chat_answer_generator.py](../backend/app/infrastructure/chat_answer_generator.py)（新增） | messages 请求、max_tokens、禁用重试；只接受完整 stop 响应，截断/过滤/工具调用响应返回安全错误 |
+| [openai_answer_generator.py](../backend/app/infrastructure/openai_answer_generator.py) | 抽出共享的 build_model_input 和 parse_model_answer；两协议复用来源、拒答、越界检查和引用重编号 |
+| [dependencies.py](../backend/app/api/dependencies.py)、[config.py](../backend/app/core/config.py) | 选择三种模式；模型密钥、名称、地址显式配置，不隐式改用其他供应商 |
+| [.env.example](../.env.example)、[compose.yaml](../compose.yaml) | CHAT_MAX_TOKENS 和 CHAT_DISABLE_THINKING；公开文件只有示例，真实密钥仍在本机 |
+| [test_chat_answer_generator.py](../tests/test_chat_answer_generator.py)（新增）、[conftest.py](../tests/conftest.py) | 38 个新增离线测试；模拟异常、引用映射、HTTP 502/503，并覆盖本机付费配置，普通 pytest 不调用模型 |
 
-### 启用前必须知道
+### 如何使用
 
-在本机 `.env` 按 [README 的语义向量配置](../README.md#可选启用语义向量) 填写，密钥不要发聊天或提交 Git。默认示例为 `text-embedding-3-small` / 1536 维，依据 [OpenAI 官方 Embedding 文档](https://developers.openai.com/api/docs/guides/embeddings)；兼容服务需使用自己的模型名称和原生输出维度。`EMBEDDING_DIMENSION` 仅校验输出，不发送降维参数。
+本机已切换为 DeepSeek 回答模式，重新启动服务后，问答和 Agent 知识步骤会产生模型调用。配置与启动命令见 [README](../README.md#deepseek-回答配置)。只想离线练习时改 `ANSWER_GENERATOR=extractive`；本次未改 `EMBEDDING_PROVIDER=hash`。
 
-- `EMBEDDING_PROVIDER=openai` 会让应用发送文档块和查询到配置的服务，可能计费；只处理获准发送的材料。回答模型由 `ANSWER_GENERATOR` 独立控制。
-- 修改配置后重启。SQLite 保存文本块，不保存向量；启动和语料变化时重新嵌入已有文本。切换模型会完整重建，不混用哈希、旧模型和新模型向量，但会重复产生调用成本。当前适合小型演示语料。
-- SDK 自动重试关闭，请求超时按单次调用计算，不是整份文档的总时限。长文本超出服务限额时会失败，不静默截断；现有按空白切块方式对长中文仍有限制。
-- 上传流程先保存文本再重建索引。远程嵌入失败时会返回 503，但文本可能已保存，下一次成功刷新会继续索引；错误响应不能理解为事务回滚。
-- 直接检索、问答的模型故障返回安全 503；在 Agent 工具内部发生时沿用失败轨迹和停止逻辑。没有自动换回哈希、无限重试或后台恢复任务。
+兼容服务是否支持 max_tokens、system 消息等要逐家验收；`CHAT_DISABLE_THINKING=true` 是显式的 DeepSeek 扩展，不应默认发给所有供应商。512 token 是成本边界，较长回答可能截断；此时程序返回 503，不把残缺答案当完成。提高上限应同时考虑费用，不自动重试补全。
 
-### 怎样验收，不混淆结果
+### 阅读顺序（约 90 分钟，不另建笔记）
 
-本次已验证：256 项测试通过，其中远程接口用 HTTP 替身验证请求和响应；旧四组 Recall@5 仍为 77.50%、100%、90.83%、96.67%。未验证：真实服务授权、实际语义质量、延迟及费用。本机尚无模型密钥，不能编造真实成绩。
+1. **25 分钟：适配器。** 对照 Responses 的 instructions/input/output_text 与 Chat 的 messages/choices，解释为什么不能只换 base_url。
+2. **25 分钟：证据与引用。** 跟踪 parse_model_answer → RagAnswerService，理解“引用存在”不等于“每个结论都得到支持”；阅读 S2/S1 交换的测试。
+3. **20 分钟：失败与成本。** 看 finish_reason、max_retries=0 和请求上限，解释为什么 length 即使含 [S1] 也要报错。
+4. **20 分钟：验收结果。** 复述上表三个场景，并说清真实调用、模拟测试、检索质量与上线验收的区别。无需为了阅读重复付费调用。
 
-配置可用密钥后，下面命令会真实发送 20 个候选块与 60 道题，可能计费：
-
-```bash
-UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval --dataset data/evaluation/maintenance_benchmark.json --include-semantic --details
-```
-
-不带 `--include-semantic` 时，即使应用已设成远程模式，评测也仍是四组离线方案。远程评测将 80 条唯一文本分为 32、32、16 三批，只计算一次向量供三算法及 K=1/3/5 复用；不写 SQLite。`embedding_elapsed_ms` 是批量调用总耗时；各语义方案的 `average_latency_ms` 是预计算向量下的本地检索时间，不能当作在线请求延迟。
-
-问题与标签仍是 AI 合成、`unreviewed` 的开发数据。真实服务跑通后，也应先审核标签再讨论优劣；不能要求混合方案必须胜出，也不能把此数据称为独立测试集。Day 17 的完整结果及指导保留在 Git 提交 `292977f` 的本文件历史中。
-
-### 今天的阅读顺序（约 3 小时）
-
-1. **35 分钟：适配器。** 看 `openai_embeddings.py`，说明为何不能按响应列表顺序直接绑定原文、为什么维度不符要拒绝、为什么不自动换哈希。
-2. **25 分钟：组装。** 看 `build_embedding_provider()` → `get_retriever()` → `PersistentSearchIndex._refresh()`，跟踪上传、重启和更换模型时文本与向量发生什么。
-3. **30 分钟：评测。** 看 CLI 的 `_FrozenEmbeddings`，说明同一批向量复用为何降低费用，以及为何这时的计时不是线上延迟。
-4. **60 分钟：实操。** 没有密钥时运行 `uv run python -m pytest tests/test_openai_embeddings.py -v` 并阅读代表性断言；配置服务后再做真实评测，比较每题命中而不是只看均值。不要把模拟向量的结果当作语义能力证明。
-5. **30 分钟：审核与复述。** 审核 `paraphrase-03`、`paraphrase-19` 的原文和标签，把疑点发给我，不新增笔记。口头解释“代码接通”“服务跑通”“效果更好”三个不同验收层次。
+Day 18 向量接入指导保留在 Git 提交 `a21f30c` 的本文件历史；当前文件下方仍保留逐文件说明。下一步缺口是独立 Embedding 服务实测、人工审核标签、Agent 结果综合与公开部署，不再把 DeepSeek 回答接入列为未完成。
 
 <a id="day15"></a>
 
@@ -129,7 +126,7 @@ Day 15 当时没有语义 Embedding；Day 18 已增加适配器，但真实服�
 | 关键词检索 | BM25 词频和文档长度评分 | 面向当前小型文本集，没有中文专用分词 |
 | 混合检索 | 合并向量和 BM25 排名，再进行查询词覆盖率重排 | 重排是确定性规则，尚未使用神经网络重排模型 |
 | 引用式回答 | 默认摘录证据句；证据不足时拒答；返回来源和摘录 | 引用来源存在，不代表每句结论已被语义验证 |
-| 可选模型回答 | 可通过配置使用 OpenAI Responses 适配器 | 已有模拟客户端测试，不能据此声称真实模型在线调用已验收 |
+| 可选模型回答 | 支持 OpenAI Responses 与 Chat Completions；DeepSeek 完成三例真调用 | OpenAI 与 Embedding 未真测；三例 DeepSeek 冒烟不代表全面质量或线上服务验收 |
 | 故障历史工具 | 按设备编号查询演示记录，较新的记录优先 | 数据来自只读 JSON，没有生产数据库连接 |
 | 传感器工具 | 判断单次读数是否低于、处于或高于指定范围 | 阈值由请求提供；没有实时采集、趋势分析或故障预测 |
 | Agent | 根据请求字段选择工具，最多执行三步，返回执行轨迹 | 固定策略与顺序；模型不参与工具选择；没有设备控制能力 |
@@ -227,9 +224,10 @@ flowchart TD
 | --- | --- |
 | `app_name`、`app_version`、`app_env` | 应用信息和健康检查返回值 |
 | `api_prefix` | 六个 Router 的公共路径前缀 |
-| `answer_generator` | `extractive` 或 `openai`，默认前者 |
+| `answer_generator` | `extractive`、`openai`（Responses）、`chat_completions`；默认离线 |
 | `llm_api_key`、`llm_model`、`llm_base_url` | 模型适配器需要的凭证、模型和地址 |
 | `llm_timeout_seconds` | 传给模型客户端的请求超时配置 |
+| `chat_max_tokens`、`chat_disable_thinking` | Chat 输出上限（默认 512）及 DeepSeek 非思考扩展开关（默认关闭） |
 | `embedding_provider` | `hash` 或 `openai`，默认离线哈希 |
 | `embedding_api_key`、`embedding_model`、`embedding_base_url` | 向量适配器独立的凭证、模型和地址 |
 | `embedding_dimension`、`embedding_timeout_seconds` | 期望输出维度和单次请求超时；不代表总任务时限 |
@@ -448,6 +446,12 @@ RRF 的 `add_chunks()` 把新块传给所有底层索引，返回各索引新增
 
 越界引用仍然是拒绝并抛错：直接问答由 API 边界转成 502，Agent 内部调用则转成失败轨迹；没有自动切换摘录器。9 月 5 日发现的正文与列表编号错配已在 Day 15 修复，并补了模型适配器经过 RAG 服务的跨层测试。
 
+### `backend/app/infrastructure/chat_answer_generator.py`：Chat Completions 适配器
+
+[打开源码](../backend/app/infrastructure/chat_answer_generator.py)。`ChatCompletionsAnswerGenerator` 将同一批证据放入 messages，发送非流式请求，限制输出 token 并禁用自动重试。只接受单条完整 stop 回答；截断、过滤、意外工具调用或响应结构错误转换为安全 `ModelServiceError`。空证据不调用模型。
+
+两协议通过 `openai_answer_generator.py` 中的 `build_model_input()` 和 `parse_model_answer()` 复用原有 Prompt、拒答、引用检查与重编号，避免规则分叉。这里没有引入新的 Agent 循环或工具执行权限；模型返回工具调用不会被执行。DeepSeek 的 thinking 扩展只在显式配置时发送，其他兼容服务必须单独验收。
+
 ### `backend/app/services/rag_answering.py`：检索、生成、核对、返回
 
 [打开源码](../backend/app/services/rag_answering.py)。`RagAnswerService.answer()` 清理问题，调用检索器获取候选，将候选交给生成器，再由 `_build_citations()` 逐个检查生成器报告的 Chunk ID 是否属于本次候选。
@@ -570,6 +574,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 | --- | --- |
 | [tests/test_answer_generator.py](../tests/test_answer_generator.py) | 摘录器选出相关句子、添加标记、限制引用数、证据不足拒答、参数限制 |
 | [tests/test_openai_answer_generator.py](../tests/test_openai_answer_generator.py) | 假客户端收到的 Prompt、模型名和来源；标记到 Chunk 的映射、重复标记去重、空证据不调用、坏输出处理 |
+| [tests/test_chat_answer_generator.py](../tests/test_chat_answer_generator.py) | Chat 请求预算及思考开关、共享引用逻辑、缺证据拒答、截断拒绝、401/402/429/500/超时、三模式工厂选择及 HTTP 502/503 |
 | [tests/test_rag_answering.py](../tests/test_rag_answering.py) | 检索与生成参数传递、引用来源组装、拒绝未知 Chunk、无引用时 `grounded=false` |
 | [tests/test_answer_api.py](../tests/test_answer_api.py) | HTTP 回答带来源、不支持的问题拒答、上传文档支持后续回答、非法请求 |
 | [tests/test_maintenance_tools.py](../tests/test_maintenance_tools.py) | 历史记录筛选与时间排序、JSON 加载、非法输入、低于/处于/高于范围三类结果 |
@@ -586,7 +591,7 @@ UV_CACHE_DIR=.uv-cache uv run python -m backend.app.cli.evaluate_retrieval
 | [tests/test_retrieval_benchmark.py](../tests/test_retrieval_benchmark.py) | 来源与标签读取；重复 ID/问题、无效引用、空数据、损坏或缺失文件；合成基准规模及未审核状态 |
 | [tests/test_retrieval_evaluation_cli.py](../tests/test_retrieval_evaluation_cli.py) | 默认 6 题兼容、60 题模块命令、数据指纹、逐题与汇总一致、输入错误码、不触碰持久化知识库 |
 
-Day 18 执行 `python -m pytest`：256 项通过，保留一个已有的 Starlette/httpx 弃用警告。今天新增 36 项测试；测试使用模拟模型 HTTP，不代表真实模型调用通过、标注已审核或检索质量达标。
+Day 19 执行 `python -m pytest`：294 项通过，保留一个已有的 Starlette/httpx 弃用警告。今天新增 38 项离线测试；本机 `.env` 已有密钥，但测试配置覆盖为离线和空凭证。另行授权的三次真实模型调用不计入 Pytest 数量。
 
 <a id="support-files"></a>
 
@@ -701,7 +706,7 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 
 ## 15. 已知缺口与后续工作
 
-以下基于 Day 18 源码与本次验证结果，便于理解实现的真实范围。
+以下基于 Day 19 源码与本次验证结果，便于理解实现的真实范围。
 
 | 项目 | 当前状态与影响 |
 | --- | --- |
@@ -710,7 +715,7 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 | 错误处理 | 直接问答保留 502/503；Agent 工具内部异常返回 HTTP 200 的 `tool_failure` 执行记录，保留部分结果。执行前的依赖错误仍走 5xx；没有自动重试、续跑或故障恢复 |
 | 状态持久化 | SQLite 保存文本块并驱动索引重建；事务回滚和跨实例读取已测。没有 PostgreSQL/Qdrant、跨主机同步、大规模增量索引或删除/版本清理功能 |
 | 文档处理 | 无 OCR、章节自动提取、表格专用解析及中文切块优化；PDF ID 依据文件名和拼接全文，没有编码全部分页结构 |
-| 真实模型验证 | 模型适配器的测试使用假客户端；尚不能把该测试结果当作线上模型质量、延迟或费用证据 |
+| 真实模型验证 | DeepSeek 已有三次授权真调用记录；OpenAI Responses 与 Embedding 未真测；仍缺全面质量评估和在线负载测量 |
 | 检索质量 | 语义 Embedding 适配器与评测已接入，真实调用尚待配置密钥验收；60 题合成标签未人工审核，哈希混合重排仍未超过 BM25；独立测试集、真实质量和费用未完成 |
 | Agent 深度 | 固定策略和结果拼接已实现；没有模型自主规划、多个工具结果的模型综合推理、自动重试或故障恢复 |
 | 产品与部署 | 已有中文工作台、共享口令、进程内限流、请求日志、Docker/Compose 和 CI；多用户账号、分布式限流、公开 HTTPS 部署、负载与成本评测仍未完成 |
@@ -750,4 +755,4 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 UV_CACHE_DIR=.uv-cache uv run python -m pytest
 ```
 
-从阅读结果形成面试表述时，可以准确说：已实现文档导入、文本块持久化、混合检索、引用式回答、可配置模型适配器、三个只读工具的受约束工作流、中文演示台及自动化验证。容器与浏览器结果依据 CI 实际记录；质量提升、真实模型在线验收和公开部署仍需要后续证据。
+从阅读结果形成面试表述时，可以准确说：已实现文档导入、文本块持久化、混合检索、引用式回答、可配置模型适配器、三个只读工具的受约束工作流、中文演示台及自动化验证。DeepSeek 已完成三例真实调用；容器与浏览器依据 CI 实际记录。检索质量提升、全面模型评估及公开部署仍需要后续证据。
