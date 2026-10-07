@@ -10,9 +10,17 @@ BASE = "http://127.0.0.1:8000"
 TOKEN = os.environ["API_ACCESS_TOKEN"]
 
 
-def request(path: str, *, data: bytes | None = None, content_type: str = "application/json"):
+def request(
+    path: str,
+    *,
+    data: bytes | None = None,
+    content_type: str = "application/json",
+    method: str | None = None,
+):
     headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": content_type}
-    with urlopen(Request(BASE + path, data=data, headers=headers), timeout=10) as response:
+    with urlopen(
+        Request(BASE + path, data=data, headers=headers, method=method), timeout=10
+    ) as response:
         return json.load(response)
 
 
@@ -40,6 +48,30 @@ def main() -> None:
             content_type=f"multipart/form-data; boundary={boundary}",
         )
         assert uploaded["indexed_chunk_count"] == 1
+        fault = request(
+            "/api/v1/faults",
+            data=json.dumps(
+                {
+                    "equipment_id": "ci-persistent-pump",
+                    "occurred_at": "2026-10-07",
+                    "symptom": "CI synthetic low pressure",
+                    "cause": "CI synthetic filter",
+                    "corrective_action": "CI synthetic cleaning",
+                    "resolved": True,
+                }
+            ).encode(),
+        )
+        assert fault["is_demo"] is False
+        retired = request(
+            "/api/v1/documents/upload",
+            data=body.replace(b"ci-compressor.txt", b"ci-expired.txt"),
+            content_type=f"multipart/form-data; boundary={boundary}",
+        )
+        request("/api/v1/documents/" + retired["document_id"], method="DELETE")
+    history = request("/api/v1/faults?equipment_id=ci-persistent-pump")
+    assert len(history) == 1 and history[0]["symptom"] == "CI synthetic low pressure"
+    documents = request("/api/v1/documents")["documents"]
+    assert not any(document["source"] == "ci-expired.txt" for document in documents)
     result = request(
         "/api/v1/search",
         data=json.dumps({"query": "compressor oil filter before startup", "limit": 1}).encode(),

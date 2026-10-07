@@ -1,0 +1,839 @@
+{
+  "recorded_at": "2026-10-07T07:28:08.778194+00:00",
+  "base_url": "http://127.0.0.1:8765",
+  "scope": "Local HTTP, extractive answers, CPU embeddings; no real LLM load or public SLA",
+  "corpus": [
+    {
+      "document_id": "doc-c5fd61598f6151a56762460812cf2879b81da36dd85942773f1dcf65d4ff29ce",
+      "source": "doe-pumps-excerpts.md",
+      "chunk_count": 61
+    },
+    {
+      "document_id": "doc-dd5d316cadc47dfcf46becd948c35ac1a7b60d3682abc553e1ed040862273b66",
+      "source": "demo_pump_manual.md",
+      "chunk_count": 3
+    }
+  ],
+  "cold_search": {
+    "status": 200,
+    "elapsed_ms": 1361.564457998611
+  },
+  "runs": [
+    {
+      "endpoint": "/search",
+      "concurrency": 1,
+      "requests": 30,
+      "successful": 30,
+      "success_rate": 1.0,
+      "status_counts": {
+        "200": 30
+      },
+      "successful_requests_per_second": 161.99567874839533,
+      "success_p50_ms": 6.066709058359265,
+      "success_p95_ms": 6.821249960921705,
+      "all_p95_ms": 6.821249960921705,
+      "samples": [
+        {
+          "status": 200,
+          "elapsed_ms": 5.970290978439152
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.065750028938055
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.835000076331198
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.872666020877659
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.821249960921705
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.967416916973889
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.2022090423852205
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.277999957092106
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.987083073705435
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.463290890678763
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.3494580099359155
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.58329198975116
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.245875032618642
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.159292068332434
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.903749959543347
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.43958302680403
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.93637493532151
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.7099169827997684
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.494250032119453
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.711292033083737
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.083999993279576
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.066709058359265
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.857583018951118
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.768249975517392
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.799666047096252
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.46629196126014
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.11658301204443
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.936791887506843
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.472541019320488
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 5.842415965162218
+        }
+      ]
+    },
+    {
+      "endpoint": "/search",
+      "concurrency": 5,
+      "requests": 30,
+      "successful": 30,
+      "success_rate": 1.0,
+      "status_counts": {
+        "200": 30
+      },
+      "successful_requests_per_second": 197.67490305429627,
+      "success_p50_ms": 24.616834009066224,
+      "success_p95_ms": 26.28112502861768,
+      "all_p95_ms": 26.28112502861768,
+      "samples": [
+        {
+          "status": 200,
+          "elapsed_ms": 7.024499936960638
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 12.021500035189092
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 16.99849998112768
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 21.901083062402904
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 26.85545792337507
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.13608301524073
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.011957972310483
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.38179198745638
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.458332966081798
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.08933306671679
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.13487497344613
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.191916967742145
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.21020797919482
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 23.87450006790459
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.447625037282705
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.081665906123817
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.066915968433022
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.803917040117085
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.5482079917565
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.23070790246129
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.616834009066224
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.61341698653996
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.48145893868059
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.58329196088016
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.566583033651114
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.24500002618879
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.5612499313429
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 26.006416999734938
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 26.28112502861768
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 24.960250011645257
+        }
+      ]
+    },
+    {
+      "endpoint": "/search",
+      "concurrency": 10,
+      "requests": 30,
+      "successful": 30,
+      "success_rate": 1.0,
+      "status_counts": {
+        "200": 30
+      },
+      "successful_requests_per_second": 190.01216867249548,
+      "success_p50_ms": 49.64266694150865,
+      "success_p95_ms": 51.728749996982515,
+      "all_p95_ms": 51.728749996982515,
+      "samples": [
+        {
+          "status": 200,
+          "elapsed_ms": 13.318917015567422
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 17.151584033854306
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 42.71179100032896
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 31.720208004117012
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 21.70766599010676
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 36.78412502631545
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 51.728749996982515
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 26.469458010978997
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 56.967042037285864
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 46.72258300706744
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.87937503028661
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 50.201833015307784
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 50.06500007584691
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.23599993344396
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.33133302256465
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.05320901889354
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 48.95695799496025
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.64266705792397
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.64266694150865
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.42974995356053
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.02179096825421
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.71145803574473
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 50.03316607326269
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 50.316665903665125
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 50.45549990609288
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 50.07662496063858
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 50.06229202263057
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.7687499737367
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 49.8107080347836
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 50.14695902355015
+        }
+      ]
+    },
+    {
+      "endpoint": "/answers",
+      "concurrency": 1,
+      "requests": 30,
+      "successful": 30,
+      "success_rate": 1.0,
+      "status_counts": {
+        "200": 30
+      },
+      "successful_requests_per_second": 145.962406148446,
+      "success_p50_ms": 6.647125002928078,
+      "success_p95_ms": 7.852750015445054,
+      "all_p95_ms": 7.852750015445054,
+      "samples": [
+        {
+          "status": 200,
+          "elapsed_ms": 7.852750015445054
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.647125002928078
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.611666991375387
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.390832946635783
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.565332994796336
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.633333978243172
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.687832996249199
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.410707952454686
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.224417011253536
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.575042032636702
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.396834040060639
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.39541691634804
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.735458038747311
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.374125019647181
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 7.069833925925195
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.767916958779097
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.583874928764999
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.280082976445556
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.3914170023053885
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 7.4711249908432364
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.74254191108048
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.495999987237155
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.894499994814396
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 7.274791947565973
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 7.107125013135374
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 7.641333038918674
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 8.087542024441063
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 7.355250068940222
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 6.894499994814396
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 7.287624990567565
+        }
+      ]
+    },
+    {
+      "endpoint": "/answers",
+      "concurrency": 5,
+      "requests": 30,
+      "successful": 30,
+      "success_rate": 1.0,
+      "status_counts": {
+        "200": 30
+      },
+      "successful_requests_per_second": 181.50421698149313,
+      "success_p50_ms": 26.43287496175617,
+      "success_p95_ms": 29.091542004607618,
+      "all_p95_ms": 29.091542004607618,
+      "samples": [
+        {
+          "status": 200,
+          "elapsed_ms": 8.95983399823308
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 13.758459012024105
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 23.336749989539385
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 28.944874997250736
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 18.023874959908426
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.811582920141518
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.713459006510675
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 26.019375072792172
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.879083084873855
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.557000073604286
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 26.344250072725117
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 27.06829202361405
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 27.643291046842933
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 29.401083011180162
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 28.928125044330955
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 28.53941696230322
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 29.091542004607618
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 28.079167008399963
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 27.022083988413215
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 27.23800006788224
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 26.43287496175617
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.18558409065008
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.538541027344763
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.205875048413873
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 25.46291600447148
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 26.950875064358115
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 27.47062500566244
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 27.54387492313981
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 27.56354201119393
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 28.184833005070686
+        }
+      ]
+    },
+    {
+      "endpoint": "/answers",
+      "concurrency": 10,
+      "requests": 30,
+      "successful": 30,
+      "success_rate": 1.0,
+      "status_counts": {
+        "200": 30
+      },
+      "successful_requests_per_second": 174.15184951017133,
+      "success_p50_ms": 54.77625003550202,
+      "success_p95_ms": 60.85033400449902,
+      "all_p95_ms": 60.85033400449902,
+      "samples": [
+        {
+          "status": 200,
+          "elapsed_ms": 9.978791000321507
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 14.966374961659312
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 36.573832971043885
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 30.931124929338694
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 19.495374988764524
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 59.954209020361304
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 41.38674994464964
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 23.975208983756602
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 52.88974998984486
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 47.23862500395626
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 57.495790999382734
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 57.92891595046967
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 59.84670901671052
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 60.22687500808388
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 59.88108296878636
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 60.85033400449902
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 60.92958291992545
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 59.90991601720452
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 60.28362503275275
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 58.649957994930446
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 57.647000066936016
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 57.18150001484901
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 55.12841697782278
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 55.363374995067716
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 54.77625003550202
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 53.052290924824774
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 52.70050000399351
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 52.7144999941811
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 52.69229202531278
+        },
+        {
+          "status": 200,
+          "elapsed_ms": 52.433624980039895
+        }
+      ]
+    }
+  ]
+}

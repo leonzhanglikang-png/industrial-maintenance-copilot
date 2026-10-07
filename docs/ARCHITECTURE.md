@@ -1,5 +1,13 @@
 # 系统架构与逐文件说明
 
+## 2026-10-07 增量
+
+当前故障历史已进入 SQLite，新增 `infrastructure/fault_store.py` 与 `api/routes/faults.py`：网页录入记录，Agent 按编号实时读取；原 JSON 只导入一次且标注示例。文档删除在事务中移除文本块、更新修订号并记录删除标记，进程内及其他实例在下一次查询时重建索引；自动种子不能恢复已删除文档，显式上传可以恢复。
+
+运维与知识库分别位于 `/`、`/knowledge`；业务导航不显示 API 文档，维护者仍可访问 `/docs`。静态资源使用内容指纹避免更新后命中旧缓存。共享口令持有者均能录入与删除，仍是单公司演示权限模型。
+
+本轮另加入独立的官方手册评测草案、真实回答/token 记录、人工审核 CSV 和本地 HTTP 压测 CLI。详细指标、11 个中文拒答案例及证据限制见 [EVALUATION.md](EVALUATION.md)；架构总图和简历材料见 [PORTFOLIO.md](PORTFOLIO.md)。下面 Day 20 段落保留为历史基线。
+
 这份说明回答三个问题：项目目前能做什么、每个文件负责什么、一次请求怎样经过这些文件。它与源码一起阅读，不需要再另写一份相同内容的学习记录。
 
 核对基准：2026-10-06，Day 20，功能提交 `ed59fc5`。[本次 CI](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/37454801797) 的 **303 项 Python 测试、5 项浏览器测试、Ruff、Docker 构建及重启持久化检查通过**。另完成真实本地语义模型与腾讯云公网验证；CI 中的模拟测试不等于模型实测。
@@ -179,7 +187,7 @@ Day 15 当时没有语义 Embedding；Day 20 已完成本地模型实测与 HTTP
 | 混合检索 | 合并向量和 BM25 排名，再进行查询词覆盖率重排 | 重排是确定性规则，尚未使用神经网络重排模型 |
 | 引用式回答 | 默认摘录证据句；证据不足时拒答；返回来源和摘录 | 引用来源存在，不代表每句结论已被语义验证 |
 | 可选模型回答 | 支持 OpenAI Responses 与 Chat Completions；DeepSeek 本机/公网各三例真调用 | OpenAI 未真测；小样本连通性不等于全面正确率 |
-| 故障历史工具 | 按设备编号查询演示记录，较新的记录优先 | 数据来自只读 JSON，没有生产数据库连接 |
+| 故障历史工具 | 按设备编号查询 SQLite 记录，较新的记录优先 | JSON 仅一次性导入示例；尚无真实客户历史 |
 | 传感器工具 | 判断单次读数是否低于、处于或高于指定范围 | 阈值由请求提供；没有实时采集、趋势分析或故障预测 |
 | Agent | 根据请求字段选择工具，最多执行三步，返回执行轨迹 | 固定策略与顺序；模型不参与工具选择；没有设备控制能力 |
 | 检索评测 | 原 6 题演示集＋60 题合成基准；四组离线及可选三组语义方案，逐题诊断 | 标签未经人工审核；语义评测使用预计算向量，不测在线延迟或答案质量 |
@@ -195,7 +203,7 @@ Day 15 当时没有语义 Embedding；Day 20 已完成本地模型实测与 HTTP
 | `backend/app/domain/` | 描述业务中的对象 | 文档、文本块、答案、故障记录、传感器读数 |
 | `backend/app/ports/` | 规定一种能力必须提供哪些方法 | `search()`、`add_chunks()`、`generate()` 等约定 |
 | `backend/app/services/` | 把多项能力串成业务流程 | 导入、RAG 回答、Agent 执行、评测 |
-| `backend/app/infrastructure/` | 提供能力的具体实现 | 哈希向量、BM25、模型客户端、JSON 查询 |
+| `backend/app/infrastructure/` | 提供能力的具体实现 | 哈希向量、BM25、模型客户端、SQLite 历史查询 |
 | `backend/app/core/` | 读取应用配置 | 环境变量、默认值、配置缓存 |
 | `backend/app/cli/` | 从终端直接运行任务 | 离线评测入口 |
 | `data/` | 保存示例输入和评测标注 | 设备手册、故障记录、问题与相关 Chunk ID |
@@ -306,7 +314,7 @@ flowchart TD
 | `get_retriever()` | 选择提供器、创建 SQLite 存储、幂等写入演示块，并让索引重建继续使用同一提供器 | 上传、搜索和回答共享的 `PersistentSearchIndex` |
 | `get_answer_generator()` | 按配置选择摘录器或模型适配器；模型模式检查密钥和模型名 | 实现 `AnswerGenerator` 的对象 |
 | `get_rag_answer_service()` | 把检索器和生成器交给 RAG 服务 | `RagAnswerService` |
-| `get_fault_history_tool()` | 加载并缓存 JSON 故障记录 | `FaultHistoryLookupTool` |
+| `get_fault_history_tool()` | 一次性导入示例，缓存工具实例；每次查询读取 SQLite | `FaultHistoryLookupTool` |
 | `get_sensor_analysis_tool()` | 创建并缓存范围判断工具 | `SensorRangeAnalysisTool` |
 | `get_maintenance_agent()` | 注入 RAG 服务、两个工具和步数限制 | `BoundedMaintenanceAgent` |
 
@@ -527,7 +535,7 @@ RRF 的 `add_chunks()` 把新块传给所有底层索引，返回各索引新增
 
 [打开源码](../backend/app/infrastructure/maintenance_tools.py)。
 
-`FaultHistoryLookupTool.from_json_file()` 加载 JSON，再通过 `TypeAdapter(list[FaultRecord])` 验证记录结构。`lookup(equipment_id, limit=3)` 忽略设备编号大小写，选出匹配记录，按日期和故障 ID 倒序排列，默认返回最多三条。无匹配时返回空列表。
+`FaultHistoryLookupTool.from_json_file()` 加载 JSON，再通过 `TypeAdapter(list[FaultRecord])` 验证记录结构。应用使用 `from_database()` 将示例一次性导入 `SQLiteFaultStore` 并加 `is_demo` 标识；网页新增记录保存到相同数据库，每次查询实时读取。`lookup(equipment_id, limit=3)` 忽略设备编号大小写，按日期和故障 ID 倒序排列，默认返回最多三条。无匹配时返回空列表。
 
 `SensorRangeAnalysisTool.analyze(readings)` 逐条判断数值：低于下限为 `below_range`，高于上限为 `above_range`，否则为 `normal`。恰好等于上下限也算 `normal`。单位只用于表达结果，没有单位自动换算。
 
@@ -773,12 +781,12 @@ Git 不跟踪空目录，以下 `.gitkeep` 只是保留目录的约定，没有�
 | 模型正文引用编号 | Day 15 已修复；只引用 S2、先 S2 后 S1、重复引用均有跨层回归测试 |
 | 引用语义核验 | 当前检查候选身份和部分格式，尚未逐句验证证据是否真的支持结论；`grounded=true` 不能解释为答案保证正确 |
 | 错误处理 | 直接问答保留 502/503；Agent 工具内部异常返回 HTTP 200 的 `tool_failure` 执行记录，保留部分结果。执行前的依赖错误仍走 5xx；没有自动重试、续跑或故障恢复 |
-| 状态持久化 | SQLite 保存文本块并驱动索引重建；事务回滚和跨实例读取已测。没有 PostgreSQL/Qdrant、跨主机同步、大规模增量索引或删除/版本清理功能 |
+| 状态持久化 | SQLite 保存文本块与故障记录，支持文档删除、修订号驱动索引重建与删除标记。没有 PostgreSQL/Qdrant、跨主机同步、大规模增量索引或完整版本管理 |
 | 文档处理 | 无 OCR、章节自动提取、表格专用解析及中文切块优化；PDF ID 依据文件名和拼接全文，没有编码全部分页结构 |
 | 真实模型验证 | DeepSeek 本机/公网各三次真调用、本地 MiniLM 和公网语义检索已测；远程 Embedding/OpenAI Responses 未真测，全面质量仍待评估 |
 | 检索质量 | 本地语义模型比较已有真实数值；60 题合成标签未人工审核，独立测试集及真实设备质量未完成；不能把满召回当生产正确率 |
 | Agent 深度 | 固定策略和结果拼接已实现；没有模型自主规划、多个工具结果的模型综合推理、自动重试或故障恢复 |
-| 产品与部署 | HTTPS/systemd/续期、公网上传与重启恢复已验证；共享口令不是多用户权限，代理后限流共享计数；负载、成本和独立新用户验收未完成 |
+| 产品与部署 | HTTPS/systemd/续期、公网上传与重启恢复已验证；共享口令不是多用户权限，代理后限流共享计数；本地小规模负载与模型费用上界已测，公网模型负载和独立新用户验收未完成 |
 
 当前使用标准库 SQLite 持久化，页面由 FastAPI 直接提供 HTML/CSS/JS，替代原定的 Streamlit 方案以保持单服务启动。PostgreSQL/Qdrant 保留为规模扩展方向，不应列为已接入组件。
 

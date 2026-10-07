@@ -170,7 +170,8 @@ def _format_fault_history(records: Sequence[FaultRecord]) -> str:
 
     for record in records:
         details.append(
-            f"{record.occurred_at.isoformat()} — {record.symptom}; "
+            f"{record.occurred_at.isoformat()}{' (demo)' if record.is_demo else ''} "
+            f"— {record.symptom}; "
             f"cause: {record.cause}; action: {record.corrective_action}."
         )
 

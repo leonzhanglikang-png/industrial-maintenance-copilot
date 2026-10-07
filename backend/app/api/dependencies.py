@@ -13,6 +13,7 @@ from backend.app.infrastructure.chunk_store import SQLiteChunkStore
 from backend.app.infrastructure.embeddings import (
     DeterministicHashEmbeddingProvider,
 )
+from backend.app.infrastructure.fault_store import SQLiteFaultStore
 from backend.app.infrastructure.hybrid_retriever import (
     ReciprocalRankFusionIndex,
 )
@@ -195,7 +196,19 @@ def get_rag_answer_service() -> RagAnswerService:
 
 @lru_cache
 def get_fault_history_tool() -> FaultHistoryLookupTool:
-    return FaultHistoryLookupTool.from_json_file(FAULT_HISTORY_PATH)
+    path = get_settings().chunk_store_path
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return FaultHistoryLookupTool.from_database(path, FAULT_HISTORY_PATH)
+
+
+def get_fault_store() -> SQLiteFaultStore:
+    path = get_settings().chunk_store_path
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    # Import demo seeds through the same initialization path used by the Agent.
+    get_fault_history_tool()
+    return SQLiteFaultStore(path)
 
 
 @lru_cache

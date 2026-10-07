@@ -100,6 +100,7 @@ def build_evaluation_summary(
             "description": dataset.description,
             "provenance": dataset.provenance,
             "review_status": dataset.review_status,
+            "split": dataset.split,
             "sha256": sha256(dataset_path.read_bytes()).hexdigest(),
             "chunk_count": len(chunks),
         }

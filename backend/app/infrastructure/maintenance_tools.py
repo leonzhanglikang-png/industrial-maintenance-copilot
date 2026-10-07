@@ -9,13 +9,22 @@ from backend.app.domain.agent import (
     SensorAssessment,
     SensorReading,
 )
+from backend.app.infrastructure.fault_store import SQLiteFaultStore
 
 
 class FaultHistoryLookupTool:
     name = "lookup_fault_history"
 
-    def __init__(self, records: list[FaultRecord]) -> None:
+    def __init__(
+        self, records: list[FaultRecord], *, store: SQLiteFaultStore | None = None
+    ) -> None:
         self._records = tuple(records)
+        self._store = store
+
+    @classmethod
+    def from_database(cls, path: Path, seed_path: Path) -> "FaultHistoryLookupTool":
+        seeds = cls.from_json_file(seed_path)
+        return cls([], store=SQLiteFaultStore(path, seeds._records))
 
     @classmethod
     def from_json_file(cls, path: Path) -> "FaultHistoryLookupTool":
@@ -40,6 +49,9 @@ class FaultHistoryLookupTool:
 
         if limit < 1:
             raise ValueError("limit must be at least 1")
+
+        if self._store is not None:
+            return self._store.lookup(normalized_id, limit=limit)
 
         matches = [
             record for record in self._records if record.equipment_id.casefold() == normalized_id

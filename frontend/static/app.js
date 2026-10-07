@@ -13,6 +13,38 @@ let config;
 let accessToken = "";
 let sensorSequence = 0;
 
+function renderPage() {
+  const knowledge = window.location.pathname === "/knowledge";
+  $("#analysis-page").hidden = knowledge;
+  $("#knowledge").hidden = !knowledge;
+  $("#page-title").textContent = knowledge ? "文档知识库" : "运维分析";
+  $("#page-breadcrumb").textContent = knowledge ? "设备维护 / 文档知识库" : "设备维护 / 分析工作台";
+  $("#page-eyebrow").textContent = knowledge ? "KNOWLEDGE BASE" : "OPERATIONS DESK";
+  $("#page-description").textContent = knowledge ? "上传设备手册，管理可检索的文档资料。" : "查手册、看历史，核对每一条依据。";
+  document.title = `${$("#page-title").textContent} · 工业运维工作台`;
+  const skip = $(".skip-link");
+  skip.href = knowledge ? "#upload-file" : "#query";
+  skip.textContent = knowledge ? "跳到文档上传" : "跳到问题输入";
+  document.querySelectorAll(".nav-item[data-page-link]").forEach((link) => {
+    const active = link.getAttribute("href") === window.location.pathname;
+    link.classList.toggle("active", active);
+    if (active) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
+  window.scrollTo(0, 0);
+}
+
+document.querySelectorAll("[data-page-link]").forEach((link) => link.addEventListener("click", (event) => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  const path = link.getAttribute("href");
+  if (path !== window.location.pathname) window.history.pushState(null, "", path);
+  renderPage();
+  $("#page-title").focus({preventScroll: true});
+}));
+window.addEventListener("popstate", renderPage);
+renderPage();
+
 function status(selector, text, kind = "") {
   const target = $(selector);
   target.textContent = text;
@@ -61,6 +93,25 @@ async function refreshDocuments() {
     const row = node("li");
     row.append(node("span", "document-source", document.source));
     row.append(node("span", "muted", `${document.chunk_count} 个文本块`));
+    const remove = node("button", "text-button", "删除");
+    remove.type = "button";
+    remove.setAttribute("aria-label", `删除 ${document.source}`);
+    remove.addEventListener("click", async () => {
+      if (!window.confirm(`删除“${document.source}”？相关原文和检索索引将被移除。`)) return;
+      remove.disabled = true;
+      try {
+        await request(`/documents/${encodeURIComponent(document.document_id)}`, {method: "DELETE"});
+        await refreshDocuments();
+        $("#result-content").hidden = true;
+        $("#result-empty").hidden = false;
+        status("#upload-status", `${document.source} 已删除，检索索引已更新。`, "success");
+        status("#request-status", "知识库已更新，请重新分析。");
+      } catch (error) {
+        status("#upload-status", error.message, "error");
+        remove.disabled = false;
+      }
+    });
+    row.append(remove);
     list.append(row);
   }
   $("#document-count").textContent = `${body.documents.length} 份文档`;
@@ -78,6 +129,49 @@ function renderCitation(citation, index, search = false) {
   card.append(node("div", "citation-meta", `${page} · 排序分数 ${Number(citation.score).toFixed(3)}（非置信度）`));
   return card;
 }
+
+async function refreshFaults(equipmentId) {
+  const records = await request(`/faults?equipment_id=${encodeURIComponent(equipmentId)}`);
+  $("#fault-list").replaceChildren(...records.map((record) => {
+    const row = node("li", "citation-card");
+    row.append(node("strong", "", `${record.occurred_at} · ${record.equipment_id} · ${record.resolved ? "已解决" : "待解决"}${record.is_demo ? " · 示例" : ""}`));
+    row.append(node("p", "", `现象：${record.symptom}`));
+    row.append(node("p", "", `原因：${record.cause}`));
+    row.append(node("p", "", `措施：${record.corrective_action}`));
+    return row;
+  }));
+  status("#fault-status", records.length ? `查到 ${records.length} 条记录（最多显示最近 20 条）。` : "该设备暂无故障记录。");
+}
+
+$("#fault-search-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const equipmentId = $("#fault-search-equipment").value.trim();
+  if (!equipmentId) return;
+  try { await refreshFaults(equipmentId); }
+  catch (error) { status("#fault-status", error.message, "error"); }
+});
+
+$("#fault-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = $("#fault-save");
+  button.disabled = true;
+  const payload = {
+    equipment_id: $("#fault-equipment").value.trim(),
+    occurred_at: $("#fault-date").value,
+    symptom: $("#fault-symptom").value.trim(),
+    cause: $("#fault-cause").value.trim(),
+    corrective_action: $("#fault-action").value.trim(),
+    resolved: $("#fault-resolved").value === "true",
+  };
+  try {
+    await request("/faults", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
+    $("#fault-search-equipment").value = payload.equipment_id;
+    await refreshFaults(payload.equipment_id);
+    status("#fault-status", "故障记录已保存，可按设备编号查询或进行综合分析。", "success");
+    $("#fault-form").reset();
+  } catch (error) { status("#fault-status", error.message, "error"); }
+  finally { button.disabled = false; }
+});
 
 function renderResult(body, mode, elapsed) {
   $("#result-empty").hidden = true;
@@ -231,10 +325,12 @@ $("#add-sensor").addEventListener("click", addSensor);
 $("#unlock").addEventListener("click", async () => {
   accessToken = $("#access-token").value.trim();
   $("#access-token").value = "";
+  status("#access-status", "正在验证访问口令…");
   try {
     await refreshDocuments();
+    status("#access-status", "已连接，可以使用运维分析和文档知识库。", "success");
     status("#request-status", "已连接，可以开始分析。", "success");
-  } catch (error) { status("#request-status", error.message, "error"); }
+  } catch (error) { status("#access-status", error.message, "error"); }
 });
 
 async function initialize() {
@@ -249,6 +345,7 @@ async function initialize() {
     $("#run-button").disabled = false;
     $("#upload-button").disabled = false;
     if (config.auth_required) {
+      status("#access-status", "请先输入工作台访问口令。");
       status("#request-status", "请先输入工作台访问口令。");
     } else {
       await refreshDocuments();
@@ -256,6 +353,8 @@ async function initialize() {
     }
   } catch (error) {
     $("#service-status").textContent = "连接需要检查";
+    $("#access-panel").hidden = false;
+    status("#access-status", error.message, "error");
     status("#request-status", error.message, "error");
   }
 }

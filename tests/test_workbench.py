@@ -3,6 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.api.dependencies import get_retriever
@@ -10,9 +11,10 @@ from backend.app.core.config import get_settings
 from backend.app.main import create_app
 
 
-def test_workbench_serves_assets_and_safe_configuration() -> None:
+@pytest.mark.parametrize("path", ["/", "/knowledge"])
+def test_workbench_serves_assets_and_safe_configuration(path: str) -> None:
     client = TestClient(create_app())
-    response = client.get("/")
+    response = client.get(path)
     assert response.status_code == 200
     assert "工业运维工作台" in response.text
     assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]

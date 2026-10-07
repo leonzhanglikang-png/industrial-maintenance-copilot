@@ -19,6 +19,17 @@ from backend.app.services.document_ingestion import (
 router = APIRouter(tags=["documents"])
 
 
+@router.delete("/documents/{document_id}")
+def delete_document(
+    document_id: str,
+    retriever: Annotated[PersistentSearchIndex, Depends(get_retriever)],
+) -> dict[str, object]:
+    deleted = retriever.delete_document(document_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="文档不存在或已删除。")
+    return {"document_id": document_id, "deleted_chunk_count": deleted}
+
+
 @router.post(
     "/documents/upload",
     response_model=DocumentUploadResponse,

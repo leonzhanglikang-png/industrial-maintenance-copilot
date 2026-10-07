@@ -14,6 +14,7 @@ class FaultRecord(BaseModel):
     cause: str = Field(min_length=1)
     corrective_action: str = Field(min_length=1)
     resolved: bool
+    is_demo: bool = False
 
 
 class SensorReading(BaseModel):

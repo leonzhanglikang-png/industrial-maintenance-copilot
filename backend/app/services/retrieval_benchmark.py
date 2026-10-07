@@ -1,11 +1,21 @@
 """Load a self-contained, explicitly sourced retrieval-only benchmark."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 from backend.app.domain.documents import Chunk
 from backend.app.services.retrieval_evaluation import RetrievalEvaluationCase
+
+
+class AnswerEvaluationCase(BaseModel):
+    case_id: str
+    query: str = Field(min_length=1, max_length=500)
+    relevant_chunk_ids: set[str]
+    expected_refusal: bool
+    expected_answer_points: str
+    topic: str
 
 
 class RetrievalBenchmark(BaseModel):
@@ -15,6 +25,8 @@ class RetrievalBenchmark(BaseModel):
     review_status: str = Field(min_length=1)
     chunks: list[Chunk] = Field(min_length=1)
     cases: list[RetrievalEvaluationCase] = Field(min_length=1)
+    split: Literal["development", "holdout"] = "development"
+    answer_cases: list[AnswerEvaluationCase] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_labels(self) -> "RetrievalBenchmark":
@@ -32,6 +44,13 @@ class RetrievalBenchmark(BaseModel):
         for case in self.cases:
             if not case.relevant_chunk_ids <= chunk_ids:
                 raise ValueError(f"Case {case.case_id} references unknown chunk IDs")
+        if len({case.case_id for case in self.answer_cases}) != len(self.answer_cases):
+            raise ValueError("Duplicate answer case_id")
+        for case in self.answer_cases:
+            if not case.relevant_chunk_ids <= chunk_ids:
+                raise ValueError("Answer case references unknown chunk IDs")
+            if case.expected_refusal == bool(case.relevant_chunk_ids):
+                raise ValueError("Answer case labels conflict with expected refusal")
         return self
 
 

@@ -16,6 +16,7 @@ def install_workbench(application: FastAPI, settings: Settings) -> None:
     application.mount("/static", StaticFiles(directory=WEB_ROOT / "static"), name="static")
 
     @application.get("/", include_in_schema=False)
+    @application.get("/knowledge", include_in_schema=False)
     def workbench() -> FileResponse:
         return FileResponse(WEB_ROOT / "index.html")
 

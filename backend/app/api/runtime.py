@@ -110,7 +110,7 @@ def install_runtime(application: FastAPI, settings: Settings) -> None:
         response.headers["X-Request-ID"] = request.state.request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
-        if path == "/":
+        if path in {"/", "/knowledge"}:
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; script-src 'self'; style-src 'self'; "
                 "img-src 'self' data:; connect-src 'self'; object-src 'none'; "

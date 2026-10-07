@@ -21,7 +21,7 @@ class PersistentSearchIndex:
         self._version = -1
         self._chunks: list[Chunk] = []
         self._index = build_index(())
-        store.add_chunks(seed_chunks)
+        store.add_chunks(seed_chunks, restore=False)
         self._refresh()
 
     def _refresh(self) -> None:
@@ -42,6 +42,12 @@ class PersistentSearchIndex:
         with self._lock:
             self._refresh()
             return self._index.search(query, limit=limit)
+
+    def delete_document(self, document_id: str) -> int:
+        with self._lock:
+            deleted = self._store.delete_document(document_id)
+            self._refresh()
+            return deleted
 
     def list_documents(self) -> list[dict[str, object]]:
         with self._lock:

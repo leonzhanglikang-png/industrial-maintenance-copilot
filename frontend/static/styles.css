@@ -273,7 +273,8 @@ main {
   white-space: nowrap;
 }
 .query-panel,
-.result-panel {
+.result-panel,
+.fault-panel {
   padding: 1.5rem;
 }
 .result-panel {
@@ -613,7 +614,6 @@ input::placeholder {
   font-size: 0.8rem;
 }
 .knowledge-panel {
-  margin-top: 1.5rem;
   padding: 1.5rem;
 }
 .knowledge-panel .panel-heading {
@@ -745,7 +745,8 @@ input::placeholder {
     grid-template-columns: minmax(300px, 1fr) minmax(320px, 1fr);
   }
   .query-panel,
-  .result-panel {
+  .result-panel,
+  .fault-panel {
     padding: 1.1rem;
   }
   .upload-form {
@@ -850,6 +851,14 @@ input::placeholder {
     flex-direction: column;
   }
 }
+.fault-panel { grid-column: 1 / -1; }
+.fault-editor { margin-top: 1rem; }
+.fault-editor summary { cursor: pointer; }
+.fault-editor form { margin-top: 1rem; }
+.fault-editor button { margin-top: 1rem; }
+.fault-list { list-style: none; padding: 0; display: grid; gap: 0.75rem; }
+.fault-list p { overflow-wrap: anywhere; }
+.document-list button { flex-shrink: 0; }
 @media (prefers-reduced-motion: no-preference) {
   button,
   a,
