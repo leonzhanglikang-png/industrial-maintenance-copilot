@@ -1,0 +1,28 @@
+{
+  "paid_calls": 0,
+  "checks": {
+    "/": 200,
+    "/knowledge": 200,
+    "/docs": 200,
+    "/openapi.json": 200,
+    "/api/v1/health": 200
+  },
+  "unauthenticated_faults": 401,
+  "fault_create_query_restart": true,
+  "document_upload_search_delete_restart": true,
+  "original_documents_preserved": true,
+  "temporary_fault_cleaned": true,
+  "documents": [
+    {
+      "document_id": "doc-05d427e7739f9467567251d828c6f5cad2f4ba2e7cf7d383d5742c9aac76c05b",
+      "source": "deployment_compressor.md",
+      "chunk_count": 1
+    },
+    {
+      "document_id": "doc-dd5d316cadc47dfcf46becd948c35ac1a7b60d3682abc553e1ed040862273b66",
+      "source": "demo_pump_manual.md",
+      "chunk_count": 3
+    }
+  ],
+  "original_http_site": 200
+}

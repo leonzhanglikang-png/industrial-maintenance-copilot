@@ -96,3 +96,9 @@ uv run python -m backend.app.cli.benchmark_http \
 ## 尚未完成
 
 人工相关性和回答质量审核、真实维修人员的独立可用性验收、多公司权限隔离、真实 IoT 接入、长期运行与公网大模型负载验证均未完成。
+
+## 交付验证
+
+功能提交 `41e7d17` 的 [GitHub CI 37588276119](https://github.com/leonzhanglikang-png/industrial-maintenance-copilot/actions/runs/37588276119) 已通过 313 项 Python、8 项浏览器、Ruff、Docker 构建、容器访问控制及重启持久化。两分钟录制为单独本地测试，不混入 CI 浏览器回归数量。
+
+同一功能版本已更新公网，使用临时资料实测故障录入/查询及重启保存、手册上传/搜索/删除及重启保持删除。临时故障记录已清理，原两份文档/4 个块、密钥配置及原网站服务保持；此次公网检查没有追加模型调用。摘要见 [公网验收](evaluation/public-2026-10-07.json)。
